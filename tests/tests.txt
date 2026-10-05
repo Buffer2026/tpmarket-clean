@@ -1,0 +1,110 @@
+# Tests
+
+## Test 1 - Land, navigate to auth, and sign up [sanity]
+Viewport: desktop
+Covers: landing hero and CTA navigation, auth page tab switching, signup form submission, client-side workflow
+Description: Verifies the core landing-to-signup workflow completes end to end.
+
+Steps:
+1. On the landing page, confirm the hero heading mentions "No Cap" is visible
+2. Click the "Create Free Account" button
+3. On the auth page, switch to the "Sign Up" tab
+4. Fill in Full Name, Email, and Password fields with valid values
+5. Submit the form
+
+Expected: A "Welcome to TPMarket!" confirmation message is shown after submission.
+
+## Test 2 - Reject signup with missing fields
+Viewport: mobile
+Covers: required-field validation, invalid-submission guardrail
+Description: Verifies the signup form blocks submission when required fields are empty.
+
+Steps:
+1. Navigate to the auth page
+2. Switch to the "Sign Up" tab
+3. Leave the Full Name field empty
+4. Submit the form
+
+Expected: A validation error message is visible and no confirmation screen is shown.
+
+## Test 3 - Customer dashboard shows stats and activity
+Viewport: desktop
+Covers: customer dashboard stat cards, recent activity list rendering
+Description: Verifies the customer dashboard renders TP Coins, Active Orders, and Completed Jobs stat cards along with the recent activity list.
+
+Steps:
+1. Navigate to the customer dashboard
+2. Observe the stat cards for TP Coins, Active Orders, and Completed Jobs
+3. Observe the recent activity list
+
+Expected: All three stat cards display values, and at least one order with a status label is visible in the list.
+
+## Test 4 - Provider accepts and completes an order
+Viewport: desktop
+Covers: provider dashboard order management, order status transitions, active order count update
+Description: Verifies a provider can move a pending order through Accepted to Completed and the UI reflects the change without a page reload.
+
+Steps:
+1. Navigate to the provider dashboard
+2. Find a pending order and click its accept (check) button
+3. Confirm the order now shows an "Accepted" status with a "Mark Complete" option
+4. Click "Mark Complete" on that order
+
+Expected: The order's status badge updates to "Completed" and the Active Orders stat reflects the change, all without navigating away from the page.
+
+## Test 5 - Artisan quote-to-payment flow
+Viewport: desktop
+Covers: multi-step artisan profile flow, quote request submission, job status hand-off, final payment modal
+Description: Verifies a customer can move from viewing an artisan's profile all the way through requesting a quote and completing a mock payment.
+
+Steps:
+1. Navigate to the artisan profile page
+2. Confirm the profile shows "Carpenter Certified" with rank, specializations, and experience
+3. Click "Connect with me Now!"
+4. Click "Request a Quote"
+5. Type a job description into the text area and click "Send Request"
+6. Confirm the "Unsealed Job" status screen appears, then click "Simulate: Provider Sent Quote"
+7. Confirm the final price is shown, then click "Deal Sealed & Pay"
+8. In the payment modal, select a payment method and click "Confirm Payment"
+
+Expected: A "Payment Successful!" confirmation screen is shown after confirming payment.
+
+## Test 6 - Marketplace category filter and profile link
+Viewport: desktop
+Covers: marketplace category filter buttons, artisan card rendering, navigation to artisan profile
+Description: Verifies that filtering the marketplace by category narrows the artisan grid, and that a card's View Profile button navigates to the artisan profile page.
+
+Steps:
+1. Navigate to the marketplace page
+2. Confirm the "Find Your Pro" heading and multiple artisan cards are visible in the grid
+3. Click the "Tailors" category filter
+4. Confirm only Tailor artisan cards remain visible
+5. Click "View Profile" on one of the remaining cards
+
+Expected: After filtering, only Tailor category cards are shown; clicking View Profile navigates to the artisan profile page showing "Carpenter Certified".
+
+## Test 7 - Marketplace search narrows results
+Viewport: mobile
+Covers: marketplace search input, empty-state message
+Description: Verifies that searching for a non-matching term on the marketplace page shows the empty state instead of the grid.
+
+Steps:
+1. Navigate to the marketplace page
+2. Type a name that does not match any artisan into the search bar
+
+Expected: A "No pros match your search" message is shown instead of the artisan grid.
+
+## Test 8 - Live avatar measurement studio
+Viewport: desktop
+Covers: gender toggle, live avatar reactivity to measurement inputs, auto-fill button, measurement submission
+Description: Verifies the custom measurement page lets a customer enter body measurements, see the avatar panel update, and submit to the tailor.
+
+Steps:
+1. Navigate to the custom measurement page
+2. Confirm the avatar panel and measurement form are both visible
+3. Change the Waist input to a new number
+4. Toggle the gender to "Woman"
+5. Click "Auto-Fill Standard Size"
+6. Click "Send Measurements to Tailor"
+
+Expected: After clicking Send Measurements, a "Measurements Sent!" confirmation is shown with a link back to the artisan profile.

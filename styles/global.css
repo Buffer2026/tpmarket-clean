@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-navy text-white;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10;
+  }
+  .glow-lemon {
+    box-shadow: 0 0 50px rgba(204, 255, 0, 0.25);
+  }
+  .text-gradient {
+    background: linear-gradient(90deg, #CCFF00, #8B5CF6);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-24px);
+  }
+}
+
+.animate-float {
+  animation: float 7s ease-in-out infinite;
+}
+
