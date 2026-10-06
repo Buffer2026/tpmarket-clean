@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
-import { useRouter } from 'next/router';
 import { supabase } from '../../lib/supabase';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -14,12 +12,12 @@ export default function LoginPage() {
     setMessage('');
 
     try {
-      // MAGIC LINK LOGIC (No Password Needed)
-      // This sends the email and tells Supabase exactly where to go after clicking
+      // MAGIC LINK LOGIC
+      // This sends the email and tells Supabase to take them to the Marketplace
       const { data, error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: 'https://tpmarket.ng/provider/dashboard', 
+          emailRedirectTo: 'https://tpmarket.ng', // Takes them to the marketplace
         },
       });
 
@@ -76,7 +74,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-      </div
+      </div>
     </div>
   );
 }
