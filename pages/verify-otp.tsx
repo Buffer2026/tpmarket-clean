@@ -34,7 +34,7 @@ export default function VerifyOTPPage() {
     } else {
       setMessage('Success! Logging you in...');
       localStorage.removeItem('tpmarket_otp_email');
-      router.push('/'); 
+      router.push('/provider/dashboard'); // ← CHANGED THIS LINE
     }
     setLoading(false);
   };
