@@ -18,10 +18,12 @@ export default function LoginPage() {
     try {
       if (isSignUp) {
         // SIGN UP LOGIC
-        const { data, error } = await supabase.auth.signUp({
-          email: email,
-          password: password,
-        });
+        const { data, error } = await supabase.auth.signInWithOtp({
+  email,
+  options: {
+    redirectTo: 'https://tpmarket.ng/provider/dashboard' 
+  }
+})
         if (error) throw error;
         setMessage('✅ Account created! Please log in.');
         setIsSignUp(false); 
