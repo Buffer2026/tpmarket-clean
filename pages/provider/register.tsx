@@ -27,7 +27,7 @@ export default function ProviderRegister() {
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifyError, setVerifyError] = useState('');
 
-  // --- 2. Form Data (Added country and state) ---
+  // --- 2. Form Data ---
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -65,7 +65,7 @@ export default function ProviderRegister() {
         setFormData(prev => ({
           ...prev,
           fullName: data.user.full_name,
-          email: data.user.email || 'Verified via TPwecan',
+          email: data.user.email || '',  // Pre-fill but allow editing
           phone: data.user.phone_number || '',
         }));
       }
@@ -80,14 +80,32 @@ export default function ProviderRegister() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // --- 4. Submit Logic (Saves Location) ---
+  // --- 4. Submit Logic (NOW INCLUDES SUPABASE AUTH) ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!verifiedUser) { alert('Please verify your TPwecan ID first!'); return; }
+    if (!formData.email) { alert('Email is required!'); return; }
+    
     setSubmitLoading(true);
 
     try {
-      // 1. Save to 'providers' table (Now includes country and state)
+      // STEP 1: Create Supabase Auth Account (THIS WAS MISSING!)
+      // This allows them to use magic links later
+      const { data: authData, error: authError } = await tpmarketSupabase.auth.signUp({
+        email: formData.email,
+        password: Math.random().toString(36).slice(-8), // Random password (they'll use magic link)
+        options: {
+          data: {
+            tpwecan_id: tpwecanId,
+            full_name: formData.fullName,
+            user_type: 'provider',
+          }
+        }
+      });
+
+      if (authError) throw authError;
+
+      // STEP 2: Save to 'providers' table
       const { data: providerData, error: providerError } = await tpmarketSupabase
         .from('providers')
         .insert({
@@ -100,13 +118,14 @@ export default function ProviderRegister() {
           specialization: formData.specialization,
           years_of_experience: parseInt(formData.experience) || 0,
           is_verified: true,
+          user_id: authData.user?.id, // Link to Supabase Auth
         })
         .select()
         .single();
 
       if (providerError) throw providerError;
 
-      // 2. Save Bank Details
+      // STEP 3: Save Bank Details
       if (formData.bankName && formData.accountNumber) {
         const { error: bankError } = await tpmarketSupabase
           .from('provider_bank_details')
@@ -118,13 +137,14 @@ export default function ProviderRegister() {
           });
         if (bankError) throw bankError;
       }
-   localStorage.setItem('tpwecan_id', tpwecanId); // Saves the ID for the dashboard
-      alert(' Registration Successful! Welcome to TP Market.');
-      router.push('/provider/dashboard');
+
+      localStorage.setItem('tpwecan_id', tpwecanId);
+      alert('✅ Registration Successful! Check your email for a login link.');
+      router.push('/provider/login'); // Send them to login to use the magic link
 
     } catch (error: any) {
       console.error('Registration Error:', error);
-      alert('Error saving data: ' + error.message);
+      alert('Error: ' + error.message);
     } finally {
       setSubmitLoading(false);
     }
@@ -156,14 +176,14 @@ export default function ProviderRegister() {
 
           {/* --- PERSONAL & LOCATION INFO --- */}
           <div className="bg-[#0a192f] p-6 rounded-xl shadow-lg border border-gray-700">
-            <h2 className="text-white font-bold text-lg mb-4">👤 Personal & Location Info</h2>
+            <h2 className="text-white font-bold text-lg mb-4"> Personal & Location Info</h2>
             <div className="space-y-4">
               <div>
                 <label className="block text-gray-400 text-sm mb-1">Full Name</label>
                 <input type="text" name="fullName" value={formData.fullName} readOnly={!!verifiedUser} className="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-600 disabled:opacity-70" />
               </div>
               
-              {/* NEW LOCATION DROPDOWNS */}
+              {/* LOCATION DROPDOWNS */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-gray-400 text-sm mb-1">Country</label>
@@ -185,7 +205,15 @@ export default function ProviderRegister() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-gray-400 text-sm mb-1">Email</label>
-                  <input type="email" name="email" value={formData.email} readOnly={!!verifiedUser} className="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-600 disabled:opacity-70" />
+                  <input 
+                    type="email" 
+                    name="email" 
+                    value={formData.email} 
+                    onChange={handleChange}  // CHANGED: Now editable!
+                    required
+                    className="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-600 focus:outline-none focus:border-[#ccff00]" 
+                    placeholder="you@example.com"
+                  />
                 </div>
                 <div>
                   <label className="block text-gray-400 text-sm mb-1">Phone Number</label>
@@ -197,7 +225,7 @@ export default function ProviderRegister() {
 
           {/* --- PROFESSIONAL INFO --- */}
           <div className="bg-[#0a192f] p-6 rounded-xl shadow-lg border border-gray-700">
-            <h2 className="text-white font-bold text-lg mb-4">🛠️ Professional Details</h2>
+            <h2 className="text-white font-bold text-lg mb-4">️ Professional Details</h2>
             <div className="space-y-4">
               <div>
                 <label className="block text-gray-400 text-sm mb-1">Main Specialization</label>
@@ -239,7 +267,7 @@ export default function ProviderRegister() {
           </div>
 
           <button type="submit" disabled={submitLoading || !verifiedUser} className="w-full bg-[#ccff00] text-[#0a192f] font-bold text-lg py-4 rounded-xl hover:bg-[#b3e600] disabled:opacity-50 transition shadow-lg">
-            {submitLoading ? 'Creating Store...' : 'Complete Registration & Launch Store 🚀'}
+            {submitLoading ? 'Creating Account...' : 'Complete Registration & Launch Store 🚀'}
           </button>
         </form>
       </div>
