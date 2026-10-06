@@ -36,7 +36,7 @@ export default function LoginPage() {
         if (error) throw error;
         
         setMessage('✅ Login successful! Redirecting...');
-        setTimeout(() => router.push('/'), 1000); 
+           setTimeout(() => router.push('/provider/dashboard'), 2000)
       }
     } catch (error) {
       setMessage('❌ Error: ' + error.message);
