@@ -9,13 +9,28 @@ const tpmarketSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// List of Nigerian States for the dropdown
-const nigerianStates = [
-  "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno",
-  "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT (Abuja)", "Gombe",
-  "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos",
-  "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto",
-  "Taraba", "Yobe", "Zamfara"
+// Top 20 Richest African Countries by GDP, with primary languages
+const topAfricanCountries = [
+  "Nigeria (English)",
+  "South Africa (English)",
+  "Egypt (Arabic)",
+  "Algeria (Arabic/French)",
+  "Morocco (Arabic/French)",
+  "Ethiopia (Amharic/English)",
+  "Kenya (English)",
+  "Ivory Coast / Côte d'Ivoire (French)",
+  "Tanzania (English/Swahili)",
+  "Ghana (English)",
+  "Angola (Portuguese)",
+  "DR Congo (French)",
+  "Uganda (English)",
+  "Sudan (Arabic/English)",
+  "Tunisia (Arabic/French)",
+  "Cameroon (English/French)",
+  "Senegal (French)",
+  "Libya (Arabic)",
+  "Zambia (English)",
+  "Rwanda (English/French)"
 ];
 
 export default function ProviderRegister() {
@@ -32,8 +47,8 @@ export default function ProviderRegister() {
     fullName: '',
     email: '',
     phone: '',
-    country: 'Nigeria', // Default
-    state: '',
+    country: '', // Changed to empty to force selection
+    region: '', // Changed from 'state' to 'region' for pan-African flexibility
     specialization: '',
     experience: '',
     bankName: '',
@@ -65,7 +80,7 @@ export default function ProviderRegister() {
         setFormData(prev => ({
           ...prev,
           fullName: data.user.full_name,
-          email: data.user.email || '',  // Pre-fill but allow editing
+          email: data.user.email || '',  
           phone: data.user.phone_number || '',
         }));
       }
@@ -80,25 +95,29 @@ export default function ProviderRegister() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // --- 4. Submit Logic (NOW INCLUDES SUPABASE AUTH) ---
+  // --- 4. Submit Logic ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!verifiedUser) { alert('Please verify your TPwecan ID first!'); return; }
     if (!formData.email) { alert('Email is required!'); return; }
+    if (!formData.country) { alert('Please select your country!'); return; }
     
     setSubmitLoading(true);
 
     try {
-      // STEP 1: Create Supabase Auth Account (THIS WAS MISSING!)
-      // This allows them to use magic links later
+      // STEP 1: Create Supabase Auth Account
+      const strongRandomPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10);
+
       const { data: authData, error: authError } = await tpmarketSupabase.auth.signUp({
         email: formData.email,
-        password: Math.random().toString(36).slice(-8), // Random password (they'll use magic link)
+        password: strongRandomPassword, 
         options: {
           data: {
             tpwecan_id: tpwecanId,
             full_name: formData.fullName,
             user_type: 'provider',
+            country: formData.country,
+            region: formData.region,
           }
         }
       });
@@ -114,11 +133,11 @@ export default function ProviderRegister() {
           email: formData.email,
           phone_number: formData.phone,
           country: formData.country,
-          state: formData.state,
+          state: formData.region, // Mapping 'region' to 'state' column for backward compatibility
           specialization: formData.specialization,
           years_of_experience: parseInt(formData.experience) || 0,
           is_verified: true,
-          user_id: authData.user?.id, // Link to Supabase Auth
+          user_id: authData.user?.id, 
         })
         .select()
         .single();
@@ -139,8 +158,8 @@ export default function ProviderRegister() {
       }
 
       localStorage.setItem('tpwecan_id', tpwecanId);
-      alert('✅ Registration Successful! Check your email for a login link.');
-      router.push('/provider/login'); // Send them to login to use the magic link
+      alert('✅ Registration Successful! Please check your email for your secure login link.');
+      router.push('/provider/login'); 
 
     } catch (error: any) {
       console.error('Registration Error:', error);
@@ -156,7 +175,7 @@ export default function ProviderRegister() {
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-[#0a192f]">Become a TP Market Provider</h1>
-          <p className="text-gray-600 mt-2">Join Nigeria's most trusted artisan network.</p>
+          <p className="text-gray-600 mt-2">Join Africa's most trusted artisan network.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -176,29 +195,35 @@ export default function ProviderRegister() {
 
           {/* --- PERSONAL & LOCATION INFO --- */}
           <div className="bg-[#0a192f] p-6 rounded-xl shadow-lg border border-gray-700">
-            <h2 className="text-white font-bold text-lg mb-4"> Personal & Location Info</h2>
+            <h2 className="text-white font-bold text-lg mb-4">👤 Personal & Location Info</h2>
             <div className="space-y-4">
               <div>
                 <label className="block text-gray-400 text-sm mb-1">Full Name</label>
                 <input type="text" name="fullName" value={formData.fullName} readOnly={!!verifiedUser} className="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-600 disabled:opacity-70" />
               </div>
               
-              {/* LOCATION DROPDOWNS */}
+              {/* PAN-AFRICAN COUNTRY & REGION */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-gray-400 text-sm mb-1">Country</label>
-                  <select name="country" value={formData.country} onChange={handleChange} className="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-600 focus:outline-none focus:border-[#ccff00]">
-                    <option value="Nigeria">Nigeria</option>
+                  <label className="block text-gray-400 text-sm mb-1">Country of Residence</label>
+                  <select name="country" value={formData.country} onChange={handleChange} required className="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-600 focus:outline-none focus:border-[#ccff00]">
+                    <option value="">Select Country</option>
+                    {topAfricanCountries.map((country) => (
+                      <option key={country} value={country}>{country}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-gray-400 text-sm mb-1">State of Residence</label>
-                  <select name="state" value={formData.state} onChange={handleChange} required className="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-600 focus:outline-none focus:border-[#ccff00]">
-                    <option value="">Select State</option>
-                    {nigerianStates.map((state) => (
-                      <option key={state} value={state}>{state}</option>
-                    ))}
-                  </select>
+                  <label className="block text-gray-400 text-sm mb-1">State / Region of Residence</label>
+                  <input 
+                    type="text" 
+                    name="region" 
+                    value={formData.region} 
+                    onChange={handleChange} 
+                    required 
+                    className="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-600 focus:outline-none focus:border-[#ccff00]"
+                    placeholder="e.g. Lagos, Nairobi, Cairo"
+                  />
                 </div>
               </div>
 
@@ -209,7 +234,7 @@ export default function ProviderRegister() {
                     type="email" 
                     name="email" 
                     value={formData.email} 
-                    onChange={handleChange}  // CHANGED: Now editable!
+                    onChange={handleChange}  
                     required
                     className="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-600 focus:outline-none focus:border-[#ccff00]" 
                     placeholder="you@example.com"
@@ -225,7 +250,7 @@ export default function ProviderRegister() {
 
           {/* --- PROFESSIONAL INFO --- */}
           <div className="bg-[#0a192f] p-6 rounded-xl shadow-lg border border-gray-700">
-            <h2 className="text-white font-bold text-lg mb-4">️ Professional Details</h2>
+            <h2 className="text-white font-bold text-lg mb-4">🛠️ Professional Details</h2>
             <div className="space-y-4">
               <div>
                 <label className="block text-gray-400 text-sm mb-1">Main Specialization</label>
@@ -251,6 +276,8 @@ export default function ProviderRegister() {
                   <option value="First Bank">First Bank</option>
                   <option value="UBA">UBA</option>
                   <option value="Zenith Bank">Zenith Bank</option>
+                  <option value="Ecobank">Ecobank</option>
+                  <option value="Standard Bank">Standard Bank</option>
                 </select>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
