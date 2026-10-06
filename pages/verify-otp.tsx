@@ -51,7 +51,7 @@ export default function VerifyOTPPage() {
             value={otp}
             onChange={(e) => setOtp(e.target.value)}
             required
-            maxLength="6"
+            maxLength={6}
             className="w-full p-3 border-2 border-gray-300 rounded-lg mb-4 text-center text-2xl tracking-widest focus:border-[#ccff00] outline-none"
             placeholder="000000"
           />
