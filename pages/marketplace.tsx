@@ -7,6 +7,7 @@ import PageShell from '../components/PageShell';
 import LandingNavbar from '../components/LandingNavbar';
 import BottomNav from '../components/BottomNav';
 import { isAuthenticated } from '../lib/auth';
+import { supabase } from '../lib/supabase'; // <-- ADDED: Connects to your database
 
 interface Listing {
   id: string;
@@ -51,7 +52,6 @@ interface AdSlide {
   gradient: string;
 }
 
-// Sponsored slots — paid ad placements only.
 const AD_SLIDES: AdSlide[] = [
   {
     id: 'ad1',
@@ -82,26 +82,6 @@ const AD_SLIDES: AdSlide[] = [
   },
 ];
 
-const listings: Listing[] = [
-  { id: '1', name: 'Toyota Brake Pads (Front Set)', emoji: '🛸', price: '₦18,500', priceValue: 18500, seller: 'AutoParts Hub', rating: 4.8, reviews: 132, type: 'Buy', category: 'Car Spare Parts' },
-  { id: '2', name: '5KVA Solar Inverter', emoji: '🔋', price: '₦620,000', priceValue: 620000, seller: 'SolarTech NG', rating: 4.9, reviews: 87, type: 'Buy', category: 'Solar Equipment & Technicians' },
-  { id: '3', name: 'Mobile Vulcanizer Call-Out', emoji: '🔧', price: 'From ₦2,000', priceValue: 2000, seller: 'Tunde Bakare', rating: 4.6, reviews: 112, type: 'Book', category: 'Mechanics' },
-  { id: '4', name: 'Car AC Regassing', emoji: '❄️', price: 'From ₦12,000', priceValue: 12000, seller: 'Kelechi Chidi', rating: 4.7, reviews: 65, type: 'Book', category: 'Mechanics' },
-  { id: '5', name: 'Heavy Duty Car Battery', emoji: '🔌', price: '₦45,000', priceValue: 45000, seller: 'AutoParts Hub', rating: 4.7, reviews: 94, type: 'Buy', category: 'Car Spare Parts' },
-  { id: '6', name: 'Generator Repair & Servicing', emoji: '🛠️', price: 'From ₦8,000', priceValue: 8000, seller: 'Ifeanyi Obi', rating: 4.9, reviews: 203, type: 'Book', category: 'Mechanics' },
-  { id: '7', name: '185/65R15 Tyre (Set of 4)', emoji: '⚙️', price: '₦210,000', priceValue: 210000, seller: 'TyrePoint NG', rating: 4.5, reviews: 58, type: 'Buy', category: 'Car Spare Parts' },
-  { id: '8', name: 'Home Deep Cleaning', emoji: '🧹', price: 'From ₦15,000', priceValue: 15000, seller: 'Amaka Nwosu', rating: 4.8, reviews: 67, type: 'Book', category: 'Home Services' },
-  { id: '9', name: 'Home Painter (2 Rooms)', emoji: '🎨', price: 'From ₦35,000', priceValue: 35000, seller: 'Segun Adewale', rating: 4.6, reviews: 41, type: 'Book', category: 'Builders & Construction' },
-  { id: '10', name: 'Home Electrician Visit', emoji: '💡', price: 'From ₦6,000', priceValue: 6000, seller: 'Chuka Eze', rating: 4.8, reviews: 89, type: 'Book', category: 'Electricians' },
-  { id: '11', name: 'Custom Ankara Outfit', emoji: '🧵', price: 'From ₦25,000', priceValue: 25000, seller: 'Zainab Styles', rating: 4.9, reviews: 76, type: 'Book', category: 'Tailors & Fashion' },
-  { id: '12', name: 'Phone Screen Repair', emoji: '📱', price: 'From ₦10,000', priceValue: 10000, seller: 'GadgetFix Lagos', rating: 4.7, reviews: 154, type: 'Book', category: 'Computer & Phone Engineers' },
-  { id: '13', name: 'Business Website Build', emoji: '💻', price: 'From ₦150,000', priceValue: 150000, seller: 'CodeCraft Studio', rating: 5.0, reviews: 22, type: 'Book', category: 'Web/App Developers' },
-  { id: '14', name: 'Bike Delivery (Same-Day)', emoji: '🏍️', price: 'From ₦1,500', priceValue: 1500, seller: 'QuickSend NG', rating: 4.6, reviews: 301, type: 'Book', category: 'Delivery Services' },
-  { id: '15', name: 'Office Photocopier (A3)', emoji: '🖨️', price: '₦285,000', priceValue: 285000, seller: 'OfficePro Supplies', rating: 4.4, reviews: 19, type: 'Buy', category: 'Office Equipment' },
-  { id: '16', name: 'Standing Fan (18-inch)', emoji: '🌀', price: '₦32,000', priceValue: 32000, seller: 'HomeElectronics NG', rating: 4.5, reviews: 63, type: 'Buy', category: 'Electronics & Appliances' },
-  { id: '17', name: 'Hospital Bed (Manual)', emoji: '🏥', price: '₦380,000', priceValue: 380000, seller: 'MedEquip Nigeria', rating: 4.7, reviews: 14, type: 'Buy', category: 'Hospital Equipment' },
-];
-
 export default function Marketplace() {
   const router = useRouter();
   const [showGate, setShowGate] = useState(false);
@@ -110,6 +90,10 @@ export default function Marketplace() {
   const [category, setCategory] = useState('All Categories');
   const [sortBy, setSortBy] = useState<SortOption>('Newest');
   const [adSlide, setAdSlide] = useState(0);
+  
+  // NEW: State for real database data
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -118,13 +102,37 @@ export default function Marketplace() {
     return () => clearInterval(timer);
   }, []);
 
+  // NEW: Fetch real data from Supabase on load
+  useEffect(() => {
+    async function fetchListings() {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*');
+      
+      if (data && !error) {
+        // Map database columns to our Listing interface
+        const formattedListings = data.map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          emoji: item.emoji || '📦', // Fallback emoji
+          price: `₦${Number(item.price).toLocaleString()}`,
+          priceValue: Number(item.price),
+          seller: item.seller_name || 'Verified Seller', // Fallback name
+          rating: item.rating || 4.5,
+          reviews: item.reviews || 0,
+          type: item.type || 'Buy',
+          category: item.category || 'All Categories'
+        }));
+        setListings(formattedListings);
+      }
+      setIsLoading(false);
+    }
+    fetchListings();
+  }, []);
+
   function handleAction(listing: Listing) {
     if (isAuthenticated()) {
-      if (listing.category === 'Tailors & Fashion') {
-        router.push('/artisan/tailor-profile');
-        return;
-      }
-      router.push(listing.type === 'Buy' ? `/checkout?item=${listing.id}` : `/chat?item=${listing.id}`);
+      router.push(`/product/${listing.id}`);
       return;
     }
     setSelected(listing);
@@ -155,10 +163,9 @@ export default function Marketplace() {
     } else if (sortBy === 'Popular') {
       result = [...result].sort((a, b) => b.reviews - a.reviews);
     }
-    // 'Newest' keeps the original listing order
 
     return result;
-  }, [search, category, sortBy]);
+  }, [search, category, sortBy, listings]);
 
   return (
     <PageShell>
@@ -192,7 +199,7 @@ export default function Marketplace() {
           </button>
         </div>
 
-        {/* Sponsored ad carousel — paid placements only */}
+        {/* Sponsored ad carousel */}
         <div className="relative overflow-hidden rounded-3xl mb-8 shadow-[0_15px_40px_rgba(15,23,42,0.3)]">
           <div
             className="flex transition-transform duration-700 ease-in-out"
@@ -270,7 +277,12 @@ export default function Marketplace() {
           </div>
         </div>
 
-        {visible.length === 0 ? (
+        {/* Loading State */}
+        {isLoading ? (
+          <div className="text-center py-20">
+            <p className="text-[#64748B] font-medium text-lg">Loading genuine products...</p>
+          </div>
+        ) : visible.length === 0 ? (
           <p className="text-center text-[#64748B] font-medium py-16">
             No matches found. Try a different search or category.
           </p>
@@ -309,7 +321,7 @@ export default function Marketplace() {
           </div>
         )}
 
-        {/* Large sponsored banner — paid placement only */}
+        {/* Large sponsored banner */}
         <div className="mt-10 bg-darkcard rounded-3xl overflow-hidden border border-white/10 relative">
           <div className="bg-gradient-to-r from-[#0F172A] via-[#1E293B] to-[#0F172A] px-6 sm:px-14 py-10 sm:py-16 flex flex-col sm:flex-row items-center justify-between gap-6 text-center sm:text-left">
             <div>
@@ -341,27 +353,18 @@ export default function Marketplace() {
             >
               <X size={20} />
             </button>
-
             <div className="w-14 h-14 rounded-full bg-lemon/10 text-lemon flex items-center justify-center mx-auto mb-4">
               <ShieldCheck size={26} />
             </div>
-
             <h2 className="text-lg font-black text-white text-center mb-2">Almost there!</h2>
             <p className="text-slate text-sm text-center mb-6">
               Please Sign In or Register to complete your purchase and get the 90-Day Guarantee.
             </p>
-
             <div className="space-y-3">
-              <Link
-                href="/signin"
-                className="block text-center bg-lemon text-[#0F172A] font-black py-3.5 rounded-xl hover:scale-[1.02] hover:shadow-[0_0_25px_rgba(204,255,0,0.5)] transition-all"
-              >
+              <Link href="/signin" className="block text-center bg-lemon text-[#0F172A] font-black py-3.5 rounded-xl hover:scale-[1.02] hover:shadow-[0_0_25px_rgba(204,255,0,0.5)] transition-all">
                 Sign In
               </Link>
-              <Link
-                href="/customer/register"
-                className="block text-center bg-white/5 border border-white/10 text-white font-black py-3.5 rounded-xl hover:border-lemon/50 hover:bg-white/10 transition-all"
-              >
+              <Link href="/customer/register" className="block text-center bg-white/5 border border-white/10 text-white font-black py-3.5 rounded-xl hover:border-lemon/50 hover:bg-white/10 transition-all">
                 Register
               </Link>
             </div>
