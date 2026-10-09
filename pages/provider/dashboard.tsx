@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/router'; // Added this
 import Head from 'next/head';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../../lib/supabase';
 import {
   Wrench,
   MessageCircle,
@@ -27,12 +28,6 @@ import PageShell from '../../components/PageShell';
 import LandingNavbar from '../../components/LandingNavbar';
 import MediaUploader, { MediaFile } from '../../components/MediaUploader';
 import MediaLightbox from '../../components/MediaLightbox';
-
-// Connect to the NEW tpmarket database
-const tpmarketSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 const mockAddressBook = [
   '12 Allen Avenue, Ikeja, Lagos',
@@ -87,9 +82,12 @@ const conditionOptions = ['Fairly Used', 'New'];
 const guaranteeOptions = ['90 days', '180 days', '365 days'];
 
 export default function ProviderDashboard() {
+  const router = useRouter(); // Added this
+  const [loading, setLoading] = useState(true); // Added this
+
   // --- REAL DATA STATES ---
   const [artisanName, setArtisanName] = useState(defaultArtisanName);
-  const [currentProviderId, setCurrentProviderId] = useState<string | null>(null); // Added for DB saving
+  const [currentProviderId, setCurrentProviderId] = useState<string | null>(null);
   const [tpCoins, setTpCoins] = useState(1240);
   const [walletBalance, setWalletBalance] = useState(312000);
 
@@ -232,7 +230,7 @@ export default function ProviderDashboard() {
     }, 900);
   }
 
-  // --- NEW: REAL DATABASE SAVE LOGIC ---
+  // --- REAL DATABASE SAVE LOGIC ---
   async function handleSaveBank() {
     if (!bankName || accountNumber.trim() === '' || accountName.trim() === '') {
       alert('Please fill in all bank details.');
@@ -244,11 +242,10 @@ export default function ProviderDashboard() {
       return;
     }
 
-    setVerifying(true); // Use this as a loading indicator
+    setVerifying(true);
 
     try {
-      // 1. Check if bank details already exist for this provider
-      const { data: existingBank } = await tpmarketSupabase
+      const { data: existingBank } = await supabase
         .from('provider_bank_details')
         .select('id')
         .eq('provider_id', currentProviderId)
@@ -256,9 +253,8 @@ export default function ProviderDashboard() {
 
       let error;
 
-      // 2. If they exist, UPDATE them. If not, INSERT new ones.
       if (existingBank) {
-        const res = await tpmarketSupabase
+        const res = await supabase
           .from('provider_bank_details')
           .update({ 
             bank_name: bankName, 
@@ -268,7 +264,7 @@ export default function ProviderDashboard() {
           .eq('id', existingBank.id);
         error = res.error;
       } else {
-        const res = await tpmarketSupabase
+        const res = await supabase
           .from('provider_bank_details')
           .insert({ 
             provider_id: currentProviderId, 
@@ -281,9 +277,8 @@ export default function ProviderDashboard() {
 
       if (error) throw error;
 
-      // 3. Success!
       setBankSaved(true);
-      setTimeout(() => setBankSaved(false), 3000); // Hide the "Saved!" text after 3 seconds
+      setTimeout(() => setBankSaved(false), 3000);
       alert('Bank details saved successfully! 💰');
 
     } catch (err: any) {
@@ -355,15 +350,26 @@ export default function ProviderDashboard() {
     setEditingId(null);
   }
 
-  // --- FETCH REAL DATA ON LOAD ---
+  // --- SECURE DATA FETCH (Checks Login First) ---
   useEffect(() => {
-    const fetchDashboardData = async () => {
+    const initializeDashboard = async () => {
+      // 1. FIRST: Wait for Supabase to confirm the session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        router.push('/signin');
+        return;
+      }
+
+      // 2. Session confirmed! Now load the data.
       const tpwecanId = localStorage.getItem('tpwecan_id');
-      if (!tpwecanId) return; // If not registered, do nothing
+      if (!tpwecanId) {
+        setLoading(false);
+        return; 
+      }
 
       try {
-        // 1. Fetch Provider Profile
-        const { data: provider, error: providerError } = await tpmarketSupabase
+        const { data: provider, error: providerError } = await supabase
           .from('providers')
           .select('*')
           .eq('tpwecan_id', tpwecanId)
@@ -371,12 +377,11 @@ export default function ProviderDashboard() {
 
         if (provider && !providerError) {
           setArtisanName(provider.full_name || 'Provider');
-          setCurrentProviderId(provider.id); // <--- Save the ID for bank saving later
+          setCurrentProviderId(provider.id); 
           setSpecialization(provider.specialization || '');
           setYearsExperience(provider.years_of_experience ? String(provider.years_of_experience) : '');
           
-          // 2. Fetch Bank Details using the provider's new database ID
-          const { data: bank, error: bankError } = await tpmarketSupabase
+          const { data: bank, error: bankError } = await supabase
             .from('provider_bank_details')
             .select('*')
             .eq('provider_id', provider.id)
@@ -386,16 +391,30 @@ export default function ProviderDashboard() {
             setBankName(bank.bank_name);
             setAccountNumber(bank.account_number);
             setAccountName(bank.account_name);
-            setBankSaved(true); // Mark as saved so the UI shows it's complete
+            setBankSaved(true); 
           }
         }
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
+      } finally {
+        setLoading(false); 
       }
     };
 
-    fetchDashboardData();
+    initializeDashboard();
   }, []);
+
+  // THE ANTI-FLASH SHIELD
+  if (loading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-[#0F172A]">
+        <div className="text-center">
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-[#ccff00] border-t-transparent"></div>
+          <p className="mt-4 text-white font-bold">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <PageShell>

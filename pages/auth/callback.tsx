@@ -1,64 +1,54 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { createClient } from '@supabase/supabase-js';
-
-const tpmarketSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { supabase } from '../lib/supabase'; // <-- USES THE SHARED CONNECTION
 
 export default function AuthCallback() {
   const router = useRouter();
-  const [status, setStatus] = useState('Verifying your identity...');
 
   useEffect(() => {
     const handleSmartLogin = async () => {
-      // 1. Get the session from the URL (Supabase does this automatically)
-      const { data: { session }, error } = await tpmarketSupabase.auth.getSession();
+      // 1. This reads the URL and saves the session to your browser's memory
+      const { data: { session }, error } = await supabase.auth.getSession();
 
       if (error || !session) {
-        setStatus('Login failed. Link may be expired.');
-        setTimeout(() => router.push('/login'), 3000);
+        console.error('Login failed:', error);
+        router.push('/signin?error=login_failed');
         return;
       }
 
-      const email = session.user.email;
-      setStatus(`Welcome back! Finding your account...`);
-
-      // 2. THE SMART ROUTER: Check where this email exists
+      // 2. Session is saved! Now let's route them.
       try {
         // Check if they are a Provider
-        const { data: provider } = await tpmarketSupabase
+        const { data: provider } = await supabase
           .from('providers')
           .select('id')
-          .eq('email', email)
-          .single();
+          .eq('email', session.user.email)
+          .maybeSingle(); // maybeSingle prevents errors if no provider is found
         
         if (provider) {
-          setStatus('Provider account found! Redirecting...');
-          router.push('/provider/dashboard');
-          return;
+          // They are a provider. Send them to marketplace first (as you requested), 
+          // and they can click "Account" to go to the dashboard.
+          router.push('/marketplace');
+        } else {
+          // Regular customer
+          router.push('/marketplace');
         }
-
-        // If email is in Supabase Auth but not in any specific table yet
-        setStatus('Account verified, but profile is incomplete.');
-        setTimeout(() => router.push('/provider/register'), 3000);
-
       } catch (err) {
         console.error("Routing error:", err);
-        setStatus('Error finding your dashboard.');
-      }
+        // Fallback to marketplace if anything goes wrong
+        router.push('/marketplace');
+        }
     };
 
     handleSmartLogin();
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-sky-100 flex items-center justify-center">
-      <div className="bg-white p-8 rounded-xl shadow-lg text-center">
+    <div className="min-h-screen bg-[#0F172A] flex items-center justify-center">
+      <div className="bg-darkcard p-8 rounded-xl shadow-lg text-center border border-white/10">
         <div className="text-4xl mb-4">🔐</div>
-        <h1 className="text-2xl font-bold text-[#0a192f] mb-2">TP Market Security</h1>
-        <p className="text-gray-600">{status}</p>
+        <h1 className="text-2xl font-bold text-white mb-2">TP Market Security</h1>
+        <p className="text-slate">Securing your session and redirecting...</p>
       </div>
     </div>
   );

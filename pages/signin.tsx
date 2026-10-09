@@ -33,7 +33,10 @@ export default function SignIn() {
         email: value,
         options: { 
           shouldCreateUser: true,
-          emailRedirectTo: 'http://localhost:3000/dashboard' // Where it takes them after clicking
+          // Redirects to /marketplace on localhost or your live site automatically
+          emailRedirectTo: typeof window !== 'undefined' 
+            ? `${window.location.origin}/marketplace` 
+            : 'https://tpmarket.ng/marketplace'
         } 
       });
 
