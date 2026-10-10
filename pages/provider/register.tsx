@@ -1,13 +1,10 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
-import { createClient } from '@supabase/supabase-js';
-import Head from 'next/head';
 
+import Head from 'next/head';
+import { supabase } from '../../lib/supabase';
 // Connect to the NEW tpmarket database
-const tpmarketSupabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+
 
 // Top 20 Richest African Countries by GDP, with primary languages
 const topAfricanCountries = [
@@ -108,7 +105,7 @@ export default function ProviderRegister() {
       // STEP 1: Create Supabase Auth Account
       const strongRandomPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10);
 
-      const { data: authData, error: authError } = await tpmarketSupabase.auth.signUp({
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: strongRandomPassword, 
         options: {
@@ -125,7 +122,7 @@ export default function ProviderRegister() {
       if (authError) throw authError;
 
       // STEP 2: Save to 'providers' table
-      const { data: providerData, error: providerError } = await tpmarketSupabase
+      const { data: providerData, error: providerError } = await supabase
         .from('providers')
         .insert({
           tpwecan_id: tpwecanId,
@@ -146,7 +143,7 @@ export default function ProviderRegister() {
 
       // STEP 3: Save Bank Details
       if (formData.bankName && formData.accountNumber) {
-        const { error: bankError } = await tpmarketSupabase
+        const { error: bankError } = await supabase
           .from('provider_bank_details')
           .insert({
             provider_id: providerData.id,
