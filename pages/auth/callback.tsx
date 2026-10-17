@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { supabase } from '../lib/supabase'; // <-- USES THE SHARED CONNECTION
-
+import { supabase } from '../../lib/supabase';
 export default function AuthCallback() {
   const router = useRouter();
 
