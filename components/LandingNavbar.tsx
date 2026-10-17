@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { Zap, Menu, X } from 'lucide-react';
+import { Zap, Menu, X, LogOut } from 'lucide-react';
+import { supabase } from '../lib/supabase'; // Added Supabase import
 
 const mobileLinks = [
   { href: '/', label: 'Home' },
@@ -11,7 +13,22 @@ const mobileLinks = [
 ];
 
 export default function LandingNavbar() {
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // Check if user is logged in when the navbar loads
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsLoggedIn(!!session);
+    });
+  }, []);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setIsLoggedIn(false);
+    router.push('/signin');
+  };
 
   return (
     <nav className="sticky top-0 z-50 bg-white/40 backdrop-blur-xl border-b border-white/60">
@@ -26,42 +43,51 @@ export default function LandingNavbar() {
             TP<span className="text-purple">Market</span>
           </span>
         </Link>
+        
         <div className="hidden md:flex items-center gap-8 text-sm font-bold text-[#0F172A]/70">
-          <Link href="/#features" className="hover:text-[#0F172A] transition-colors">
-            Features
-          </Link>
-          <Link href="/marketplace" className="hover:text-[#0F172A] transition-colors">
-            Marketplace
-          </Link>
-          <Link href="/dashboard/customer" className="hover:text-[#0F172A] transition-colors">
-            Customer
-          </Link>
-          <Link href="/dashboard/provider" className="hover:text-[#0F172A] transition-colors">
-            Provider
-          </Link>
-          <Link href="/provider/tailor" className="hover:text-[#0F172A] transition-colors">
-            Tailor Studio
-          </Link>
-          <Link href="/artisan/tailor" className="hover:text-[#0F172A] transition-colors">
-            Tailor Storefront
-          </Link>
-          <Link href="/artisan/profile" className="hover:text-[#0F172A] transition-colors">
-            Artisan Demo
-          </Link>
+          <Link href="/#features" className="hover:text-[#0F172A] transition-colors">Features</Link>
+          <Link href="/marketplace" className="hover:text-[#0F172A] transition-colors">Marketplace</Link>
+          <Link href="/dashboard/customer" className="hover:text-[#0F172A] transition-colors">Customer</Link>
+          <Link href="/provider/dashboard" className="hover:text-[#0F172A] transition-colors">Provider</Link>
+          <Link href="/provider/tailor" className="hover:text-[#0F172A] transition-colors">Tailor Studio</Link>
+          <Link href="/artisan/tailor" className="hover:text-[#0F172A] transition-colors">Tailor Storefront</Link>
+          <Link href="/artisan/profile" className="hover:text-[#0F172A] transition-colors">Artisan Demo</Link>
         </div>
+
         <div className="flex items-center gap-3">
-          <Link
-            href="/signin"
-            className="hidden sm:inline-block text-[#0F172A]/70 font-bold text-sm hover:text-[#0F172A] transition-colors"
-          >
-            Sign In
-          </Link>
-          <Link
-            href="/auth"
-            className="hidden sm:inline-block bg-lemon text-[#0F172A] font-black px-5 py-2.5 rounded-full text-sm hover:scale-105 hover:shadow-[0_0_25px_rgba(204,255,0,0.6)] transition-all"
-          >
-            Get Started 🚀
-          </Link>
+          {/* SMART BUTTON: Shows Account if logged in, Sign In if not */}
+          {isLoggedIn ? (
+            <>
+              <Link
+                href="/provider/dashboard"
+                className="hidden sm:inline-block bg-lemon text-[#0F172A] font-black px-5 py-2.5 rounded-full text-sm hover:scale-105 hover:shadow-[0_0_25px_rgba(204,255,0,0.6)] transition-all"
+              >
+                Account
+              </Link>
+              <button
+                onClick={handleSignOut}
+                className="hidden sm:flex items-center gap-1 text-[#0F172A]/70 font-bold text-sm hover:text-red-500 transition-colors"
+              >
+                <LogOut size={16} /> Sign Out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/signin"
+                className="hidden sm:inline-block text-[#0F172A]/70 font-bold text-sm hover:text-[#0F172A] transition-colors"
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/auth"
+                className="hidden sm:inline-block bg-lemon text-[#0F172A] font-black px-5 py-2.5 rounded-full text-sm hover:scale-105 hover:shadow-[0_0_25px_rgba(204,255,0,0.6)] transition-all"
+              >
+                Get Started 
+              </Link>
+            </>
+          )}
+
           <button
             onClick={() => setMenuOpen(true)}
             aria-label="Open menu"
@@ -105,20 +131,42 @@ export default function LandingNavbar() {
                 {link.label}
               </Link>
             ))}
-            <Link
-              href="/signin"
-              onClick={() => setMenuOpen(false)}
-              className="w-full max-w-xs text-center border border-white/10 text-white font-black text-lg py-4 rounded-full hover:border-lemon/50 transition-all"
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/auth"
-              onClick={() => setMenuOpen(false)}
-              className="w-full max-w-xs text-center bg-lemon text-[#0F172A] font-black text-lg py-4 rounded-full mt-2 hover:scale-105 hover:shadow-[0_0_30px_rgba(204,255,0,0.6)] transition-all"
-            >
-              Get Started 🚀
-            </Link>
+            
+            {/* MOBILE SMART BUTTONS */}
+            {isLoggedIn ? (
+              <>
+                <Link
+                  href="/provider/dashboard"
+                  onClick={() => setMenuOpen(false)}
+                  className="w-full max-w-xs text-center bg-lemon text-[#0F172A] font-black text-lg py-4 rounded-full hover:scale-105 hover:shadow-[0_0_30px_rgba(204,255,0,0.6)] transition-all"
+                >
+                  Go to Dashboard
+                </Link>
+                <button
+                  onClick={() => { handleSignOut(); setMenuOpen(false); }}
+                  className="w-full max-w-xs text-center border border-red-400 text-red-500 font-black text-lg py-4 rounded-full hover:bg-red-50 transition-all"
+                >
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/signin"
+                  onClick={() => setMenuOpen(false)}
+                  className="w-full max-w-xs text-center border border-white/10 text-white font-black text-lg py-4 rounded-full hover:border-lemon/50 transition-all"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/auth"
+                  onClick={() => setMenuOpen(false)}
+                  className="w-full max-w-xs text-center bg-lemon text-[#0F172A] font-black text-lg py-4 rounded-full mt-2 hover:scale-105 hover:shadow-[0_0_30px_rgba(204,255,0,0.6)] transition-all"
+                >
+                  Get Started 🚀
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}
