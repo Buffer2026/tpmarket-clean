@@ -1,10 +1,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
-
 import Head from 'next/head';
 import { supabase } from '../../lib/supabase';
-// Connect to the NEW tpmarket database
-
 
 // Top 20 Richest African Countries by GDP, with primary languages
 const topAfricanCountries = [
@@ -44,8 +41,8 @@ export default function ProviderRegister() {
     fullName: '',
     email: '',
     phone: '',
-    country: '', // Changed to empty to force selection
-    region: '', // Changed from 'state' to 'region' for pan-African flexibility
+    country: '', 
+    region: '', 
     specialization: '',
     experience: '',
     bankName: '',
@@ -92,7 +89,7 @@ export default function ProviderRegister() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // --- 4. Submit Logic ---
+  // --- 4. Submit Logic (3-Step Flow - FIXED) ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!verifiedUser) { alert('Please verify your TPwecan ID first!'); return; }
@@ -119,29 +116,55 @@ export default function ProviderRegister() {
         }
       });
 
-      if (authError) throw authError;
+      // HANDLE "USER ALREADY REGISTERED" ERROR GRACEFULLY
+      if (authError) {
+        if (authError.message.includes('already registered') || authError.message.includes('User already registered')) {
+          alert('This email is already registered. Please sign in instead.');
+          router.push('/signin'); 
+          return;
+        }
+        throw authError; // Throw other unexpected errors
+      }
 
-      // STEP 2: Save to 'providers' table
+      const userId = authData?.user?.id;
+
+      // Check if provider profile already exists for this email
+      const { data: existingProvider } = await supabase
+        .from('providers')
+        .select('id')
+        .eq('email', formData.email)
+        .maybeSingle(); // <--- 'maybeSingle' prevents errors if the user is brand new
+
+      if (existingProvider) {
+         // Profile exists, just go to dashboard
+         localStorage.setItem('tpwecan_id', tpwecanId);
+         alert('✅ Account found! Redirecting to dashboard.');
+         router.push('/provider/dashboard');
+         return;
+      }
+
+      // STEP 2: Save to 'providers' table (Using auth.uid() as the main ID)
       const { data: providerData, error: providerError } = await supabase
         .from('providers')
         .insert({
+          id: userId, // CRITICAL: Use auth.uid() as the primary key for RLS
           tpwecan_id: tpwecanId,
           full_name: formData.fullName,
           email: formData.email,
           phone_number: formData.phone,
           country: formData.country,
-          state: formData.region, // Mapping 'region' to 'state' column for backward compatibility
+          state: formData.region, 
           specialization: formData.specialization,
           years_of_experience: parseInt(formData.experience) || 0,
           is_verified: true,
-          user_id: authData.user?.id, 
+          user_id: userId, 
         })
         .select()
         .single();
 
       if (providerError) throw providerError;
 
-      // STEP 3: Save Bank Details
+      // STEP 3: Save Bank Details (Only if filled out)
       if (formData.bankName && formData.accountNumber) {
         const { error: bankError } = await supabase
           .from('provider_bank_details')
@@ -155,8 +178,8 @@ export default function ProviderRegister() {
       }
 
       localStorage.setItem('tpwecan_id', tpwecanId);
-      alert('✅ Registration Successful! Please check your email for your secure login link.');
-      router.push('/provider/login'); 
+      alert('✅ Registration Successful! Redirecting to dashboard.');
+      router.push('/provider/dashboard'); 
 
     } catch (error: any) {
       console.error('Registration Error:', error);
