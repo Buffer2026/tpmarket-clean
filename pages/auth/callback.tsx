@@ -1,53 +1,39 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '../../lib/supabase';
+
 export default function AuthCallback() {
   const router = useRouter();
 
   useEffect(() => {
-    const handleSmartLogin = async () => {
-      // 1. This reads the URL and saves the session to your browser's memory
+    const handleAuth = async () => {
+      // 1. Wait for Supabase to process the token from the email link URL
       const { data: { session }, error } = await supabase.auth.getSession();
-
-      if (error || !session) {
-        console.error('Login failed:', error);
-        router.push('/signin?error=login_failed');
+      
+      if (error) {
+        console.error('Auth error:', error);
+        router.push('/signin');
         return;
       }
 
-      // 2. Session is saved! Now let's route them.
-      try {
-        // Check if they are a Provider
-        const { data: provider } = await supabase
-          .from('providers')
-          .select('id')
-          .eq('email', session.user.email)
-          .maybeSingle(); // maybeSingle prevents errors if no provider is found
-        
-        if (provider) {
-          // They are a provider. Send them to marketplace first (as you requested), 
-          // and they can click "Account" to go to the dashboard.
-          router.push('/marketplace');
-        } else {
-          // Regular customer
-          router.push('/marketplace');
-        }
-      } catch (err) {
-        console.error("Routing error:", err);
-        // Fallback to marketplace if anything goes wrong
+      // 2. If we have a session, give it a tiny moment to ensure LocalStorage is fully updated
+      if (session) {
+        await new Promise(resolve => setTimeout(resolve, 800)); // 800ms wait guarantees the session is saved
         router.push('/marketplace');
-        }
+      } else {
+        // 3. No session? Go back to sign in
+        router.push('/signin');
+      }
     };
 
-    handleSmartLogin();
+    handleAuth();
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-[#0F172A] flex items-center justify-center">
-      <div className="bg-darkcard p-8 rounded-xl shadow-lg text-center border border-white/10">
-        <div className="text-4xl mb-4">🔐</div>
-        <h1 className="text-2xl font-bold text-white mb-2">TP Market Security</h1>
-        <p className="text-slate">Securing your session and redirecting...</p>
+    <div className="flex h-screen w-full items-center justify-center bg-[#0F172A]">
+      <div className="text-center">
+        <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-[#ccff00] border-t-transparent"></div>
+        <p className="mt-4 text-white font-bold">Securing your session...</p>
       </div>
     </div>
   );
