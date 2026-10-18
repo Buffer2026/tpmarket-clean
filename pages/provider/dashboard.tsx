@@ -148,6 +148,23 @@ export default function ProviderDashboard() {
   const [videoLinks, setVideoLinks] = useState<VideoLink[]>([]);
   const [videoInput, setVideoInput] = useState('');
 
+  // --- VIDEO HELPER FUNCTIONS (Restored) ---
+  function extractYoutubeId(url: string): string | null {
+    const match = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+    return match ? match[1] : null;
+  }
+
+  function handleAddVideo() {
+    const trimmed = videoInput.trim();
+    if (trimmed === '') return;
+    setVideoLinks((prev) => [...prev, { id: `${Date.now()}`, url: trimmed, videoId: extractYoutubeId(trimmed) }]);
+    setVideoInput('');
+  }
+
+  function handleRemoveVideo(id: string) {
+    setVideoLinks((prev) => prev.filter((v) => v.id !== id));
+  }
+
   const [bankName, setBankName] = useState(bankOptions[0]);
   const [accountNumber, setAccountNumber] = useState('');
   const [accountName, setAccountName] = useState('');
@@ -494,7 +511,7 @@ export default function ProviderDashboard() {
     );
   }
 
-  // --- THE FULL UNLOCKED DASHBOARD UI (Your Original Code) ---
+  // --- THE FULL UNLOCKED DASHBOARD UI ---
   return (
     <PageShell>
       <Head>
