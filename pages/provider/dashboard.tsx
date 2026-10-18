@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/router'; // Added this
+import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { supabase } from '../../lib/supabase';
 import {
@@ -23,6 +23,8 @@ import {
   MapPin,
   Navigation,
   Search,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import PageShell from '../../components/PageShell';
 import LandingNavbar from '../../components/LandingNavbar';
@@ -82,8 +84,14 @@ const conditionOptions = ['Fairly Used', 'New'];
 const guaranteeOptions = ['90 days', '180 days', '365 days'];
 
 export default function ProviderDashboard() {
-  const router = useRouter(); // Added this
-  const [loading, setLoading] = useState(true); // Added this
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+
+  // --- GATEKEEPER STATES ---
+  const [isVerified, setIsVerified] = useState(false);
+  const [tpwecanInput, setTpwecanInput] = useState('');
+  const [verifyingId, setVerifyingId] = useState(false);
+  const [verifyError, setVerifyError] = useState('');
 
   // --- REAL DATA STATES ---
   const [artisanName, setArtisanName] = useState(defaultArtisanName);
@@ -139,22 +147,6 @@ export default function ProviderDashboard() {
   }
   const [videoLinks, setVideoLinks] = useState<VideoLink[]>([]);
   const [videoInput, setVideoInput] = useState('');
-
-  function extractYoutubeId(url: string): string | null {
-    const match = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-    return match ? match[1] : null;
-  }
-
-  function handleAddVideo() {
-    const trimmed = videoInput.trim();
-    if (trimmed === '') return;
-    setVideoLinks((prev) => [...prev, { id: `${Date.now()}`, url: trimmed, videoId: extractYoutubeId(trimmed) }]);
-    setVideoInput('');
-  }
-
-  function handleRemoveVideo(id: string) {
-    setVideoLinks((prev) => prev.filter((v) => v.id !== id));
-  }
 
   const [bankName, setBankName] = useState(bankOptions[0]);
   const [accountNumber, setAccountNumber] = useState('');
@@ -350,10 +342,53 @@ export default function ProviderDashboard() {
     setEditingId(null);
   }
 
-  // --- SECURE DATA FETCH (Checks Login First) ---
+  // --- GATEKEEPER: VERIFY TPWECAN ID ---
+  const handleVerifyTpwecan = async () => {
+    setVerifyingId(true);
+    setVerifyError('');
+
+    try {
+      // Check the registry table for a match
+      // IMPORTANT: Change 'tpwecan_registry' below if your table has a different name!
+      const { data: registryData, error: regError } = await supabase
+        .from('tpwecan_registry') 
+        .select('full_name, email, phone_number')
+        .eq('tpwecan_id', tpwecanInput.trim().toUpperCase())
+        .single();
+
+      if (regError || !registryData) {
+        setVerifyError('Invalid TPwecan ID. Please check the code and try again.');
+        setVerifyingId(false);
+        return;
+      }
+
+      // SUCCESS: Update the provider's profile to verified
+      const { error: updateError } = await supabase
+        .from('providers')
+        .update({ 
+          is_verified: true,
+          full_name: registryData.full_name || artisanName, // Auto-sync name if available
+        })
+        .eq('id', currentProviderId);
+
+      if (updateError) throw updateError;
+
+      // Unlock the dashboard!
+      setIsVerified(true);
+      setArtisanName(registryData.full_name || artisanName);
+      alert('✅ Identity Verified! Your dashboard is now fully unlocked.');
+
+    } catch (err: any) {
+      console.error('Verification Error:', err);
+      setVerifyError('An error occurred. Please try again.');
+    } finally {
+      setVerifyingId(false);
+    }
+  };
+
+  // --- SECURE DATA FETCH (Checks Login & Verification First) ---
   useEffect(() => {
     const initializeDashboard = async () => {
-      // 1. FIRST: Wait for Supabase to confirm the session
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
@@ -361,37 +396,36 @@ export default function ProviderDashboard() {
         return;
       }
 
-      // 2. Session confirmed! Now load the data.
-      const tpwecanId = localStorage.getItem('tpwecan_id');
-      if (!tpwecanId) {
-        setLoading(false);
-        return; 
-      }
-
       try {
+        // Fetch provider profile using the secure session user ID
         const { data: provider, error: providerError } = await supabase
           .from('providers')
           .select('*')
-          .eq('tpwecan_id', tpwecanId)
+          .eq('id', session.user.id) 
           .single();
 
         if (provider && !providerError) {
+          setCurrentProviderId(provider.id);
           setArtisanName(provider.full_name || 'Provider');
-          setCurrentProviderId(provider.id); 
-          setSpecialization(provider.specialization || '');
-          setYearsExperience(provider.years_of_experience ? String(provider.years_of_experience) : '');
+          setIsVerified(provider.is_verified || false); // THE GATEKEEPER CHECK
           
-          const { data: bank, error: bankError } = await supabase
-            .from('provider_bank_details')
-            .select('*')
-            .eq('provider_id', provider.id)
-            .single();
+          // If verified, load the rest of the dashboard data
+          if (provider.is_verified) {
+            setSpecialization(provider.specialization || '');
+            setYearsExperience(provider.years_of_experience ? String(provider.years_of_experience) : '');
+            
+            const { data: bank, error: bankError } = await supabase
+              .from('provider_bank_details')
+              .select('*')
+              .eq('provider_id', provider.id)
+              .single();
 
-          if (bank && !bankError) {
-            setBankName(bank.bank_name);
-            setAccountNumber(bank.account_number);
-            setAccountName(bank.account_name);
-            setBankSaved(true); 
+            if (bank && !bankError) {
+              setBankName(bank.bank_name);
+              setAccountNumber(bank.account_number);
+              setAccountName(bank.account_name);
+              setBankSaved(true); 
+            }
           }
         }
       } catch (error) {
@@ -416,6 +450,51 @@ export default function ProviderDashboard() {
     );
   }
 
+  // --- THE GATEKEEPER UI (If NOT verified) ---
+  if (!isVerified) {
+    return (
+      <PageShell>
+        <Head><title>Verify Identity — TPMarket</title></Head>
+        <LandingNavbar />
+        <div className="min-h-screen bg-sky-100 flex items-center justify-center py-10 px-4">
+          <div className="w-full max-w-md bg-[#0a192f] p-8 rounded-3xl shadow-2xl border border-gray-700 text-center">
+            <div className="flex justify-center mb-4">
+              <div className="w-20 h-20 bg-[#ccff00]/10 rounded-full flex items-center justify-center">
+                <Lock className="text-[#ccff00]" size={40} />
+              </div>
+            </div>
+            <h1 className="text-2xl font-black text-white mb-2">Dashboard Locked</h1>
+            <p className="text-gray-400 text-sm mb-6">To protect our marketplace, please verify your TPwecan ID to unlock your provider dashboard and start publishing jobs.</p>
+            
+            {verifyError && <div className="bg-red-500/10 border border-red-500/50 text-red-400 text-sm p-3 rounded-lg mb-4">{verifyError}</div>}
+            
+            <div className="space-y-4 text-left">
+              <div>
+                <label className="block text-gray-400 text-sm mb-1 font-bold">Enter TPwecan ID</label>
+                <input 
+                  type="text" 
+                  value={tpwecanInput} 
+                  onChange={(e) => setTpwecanInput(e.target.value)} 
+                  placeholder="e.g., WCN-EB185FDB" 
+                  className="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-600 focus:outline-none focus:border-[#ccff00] uppercase" 
+                />
+              </div>
+              <button 
+                onClick={handleVerifyTpwecan} 
+                disabled={verifyingId || !tpwecanInput} 
+                className="w-full bg-[#ccff00] text-[#0a192f] font-bold text-lg py-3 rounded-xl hover:bg-[#b3e600] disabled:opacity-50 transition shadow-lg flex items-center justify-center gap-2"
+              >
+                {verifyingId ? 'Verifying...' : <><Unlock size={20} /> Verify & Unlock Dashboard</>}
+              </button>
+            </div>
+            <p className="text-gray-500 text-xs mt-6">Don't have a TPwecan ID? <a href="/provider/register" className="text-[#ccff00] font-bold hover:underline">Register here</a></p>
+          </div>
+        </div>
+      </PageShell>
+    );
+  }
+
+  // --- THE FULL UNLOCKED DASHBOARD UI (Your Original Code) ---
   return (
     <PageShell>
       <Head>
@@ -427,7 +506,9 @@ export default function ProviderDashboard() {
         {/* HEADER */}
         <div className="bg-darkcard rounded-3xl p-6 border border-white/10 shadow-[0_20px_60px_rgba(15,23,42,0.35)] mb-6">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <h1 className="text-lg font-black text-white">Welcome back, {artisanName} 👋</h1>
+            <h1 className="text-lg font-black text-white flex items-center gap-2">
+              <Unlock className="text-[#ccff00]" size={20} /> Welcome back, {artisanName} 👋
+            </h1>
             <div className="flex items-center gap-2">
               <span className="flex items-center gap-1.5 bg-yellow/10 text-yellow text-xs font-black px-3 py-2 rounded-full whitespace-nowrap">
                 🪙 {tpCoins.toLocaleString()} TP Coins
