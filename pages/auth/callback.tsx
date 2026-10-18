@@ -6,27 +6,24 @@ export default function AuthCallback() {
   const router = useRouter();
 
   useEffect(() => {
-    const handleAuth = async () => {
-      // 1. Wait for Supabase to process the token from the email link URL
-      const { data: { session }, error } = await supabase.auth.getSession();
-      
-      if (error) {
-        console.error('Auth error:', error);
-        router.push('/signin');
-        return;
-      }
-
-      // 2. If we have a session, give it a tiny moment to ensure LocalStorage is fully updated
-      if (session) {
-        await new Promise(resolve => setTimeout(resolve, 800)); // 800ms wait guarantees the session is saved
+    // 1. Listen for the auth state change (Official Supabase method for magic links)
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
         router.push('/marketplace');
-      } else {
-        // 3. No session? Go back to sign in
-        router.push('/signin');
       }
-    };
+    });
 
-    handleAuth();
+    // 2. Fallback: manually check session in case the event doesn't fire immediately
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        router.push('/marketplace');
+      }
+    });
+
+    // 3. Clean up the listener
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, [router]);
 
   return (
