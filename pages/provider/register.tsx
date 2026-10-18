@@ -108,6 +108,7 @@ export default function ProviderRegister() {
           phone_number: formData.phone,
           country: formData.country,
           state: formData.region,
+          tpwecan_id: 'PENDING', // <--- ADDED TO SATISFY DATABASE NOT NULL CONSTRAINT
           is_verified: false, // CRITICAL: This blocks dashboard access until verified
         });
 
