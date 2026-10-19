@@ -1,1033 +1,291 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { supabase } from '../../lib/supabase';
-import {
-  Wrench,
-  MessageCircle,
-  Briefcase,
-  ShieldCheck,
-  ShoppingBag,
-  Plus,
-  Pencil,
-  Check,
-  Siren,
-  Camera,
-  ImagePlus,
-  Landmark,
-  BadgeCheck,
-  UserCircle2,
-  Youtube,
-  PlayCircle,
-  X,
-  MapPin,
-  Navigation,
-  Search,
-  Lock,
-  Unlock,
-} from 'lucide-react';
-import PageShell from '../../components/PageShell';
-import LandingNavbar from '../../components/LandingNavbar';
-import MediaUploader, { MediaFile } from '../../components/MediaUploader';
-import MediaLightbox from '../../components/MediaLightbox';
-
-const mockAddressBook = [
-  '12 Allen Avenue, Ikeja, Lagos',
-  'Computer Village, Ikeja, Lagos',
-  'Ojuelegba Market, Surulere, Lagos',
-  'Balogun Market, Lagos Island',
-  'Victoria Island, Lagos',
-  'Yaba, Lagos',
-  'Ikeja City Mall, Lagos',
-  'Lekki Phase 1, Lagos',
-  'Oshodi Market, Lagos',
-  'Alaba International Market, Lagos',
-];
-
-const LAT_MAX = 6.6;
-const LAT_MIN = 6.4;
-const LNG_MIN = 3.25;
-const LNG_MAX = 3.55;
-
-const bankOptions = [
-  'Access Bank', 'GTBank', 'Zenith Bank', 'First Bank', 'UBA',
-  'Fidelity Bank', 'Union Bank', 'Wema Bank', 'Kuda', 'Opay', 'Moniepoint', 'Other',
-];
-
-const defaultArtisanName = 'Provider';
-
-interface TaggedEquipment {
-  type: string;
-  model: string;
-  customer: string;
-}
-
-const taggedEquipment: TaggedEquipment[] = [
-  { type: 'Generator', model: 'Mikano 10KVA', customer: 'Amara Okafor' },
-  { type: 'Gasoline Car Repair', model: 'Toyota Camry LE', customer: 'Tobi Adeyemi' },
-  { type: 'AC (Air Conditioner)', model: 'LG Split 1.5HP', customer: 'Chidinma Eze' },
-];
-
-interface SparePart {
-  id: string;
-  name: string;
-  model: string;
-  partNumber: string;
-  condition: string;
-  guaranteePeriod: string;
-  description: string;
-  price: number;
-  media: MediaFile[];
-}
-
-const conditionOptions = ['Fairly Used', 'New'];
-const guaranteeOptions = ['90 days', '180 days', '365 days'];
+import BottomNav from '../../components/BottomNav';
+import { Plus, Package, TrendingUp, CheckCircle, Upload, X, Image as ImageIcon, User } from 'lucide-react';
 
 export default function ProviderDashboard() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [myListings, setMyListings] = useState<any[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- GATEKEEPER STATES ---
-  const [isVerified, setIsVerified] = useState(false);
-  const [tpwecanInput, setTpwecanInput] = useState('');
-  const [verifyingId, setVerifyingId] = useState(false);
-  const [verifyError, setVerifyError] = useState('');
-
-  // --- REAL DATA STATES ---
-  const [artisanName, setArtisanName] = useState(defaultArtisanName);
-  const [currentProviderId, setCurrentProviderId] = useState<string | null>(null);
-  const [tpCoins, setTpCoins] = useState(1240);
-  const [walletBalance, setWalletBalance] = useState(312000);
-
-  const [emergencyAvailable, setEmergencyAvailable] = useState(true);
-  const [daytimeFee, setDaytimeFee] = useState('5000');
-  const [lateNightFee, setLateNightFee] = useState('8000');
-  const [midnightFee, setMidnightFee] = useState('12000');
-  const [earlyMorningFee, setEarlyMorningFee] = useState('10000');
-
-  const [parts, setParts] = useState<SparePart[]>([
-    {
-      id: 'p1',
-      name: 'Toyota Brake Pads',
-      model: 'Camry 2015-2019',
-      partNumber: 'BP-4471',
-      condition: 'New',
-      guaranteePeriod: '90 days',
-      description: 'Genuine front brake pad set.',
-      price: 15000,
-      media: [],
-    },
-  ]);
+  const [name, setName] = useState('');
+  const [price, setPrice] = useState('');
+  const [category, setCategory] = useState('Mechanics');
+  const [type, setType] = useState('Book'); 
+  const [description, setDescription] = useState('');
   
-  const [showAddPart, setShowAddPart] = useState(false);
-  const [newPartName, setNewPartName] = useState('');
-  const [newPartModel, setNewPartModel] = useState('');
-  const [newPartNumber, setNewPartNumber] = useState('');
-  const [newPartCondition, setNewPartCondition] = useState(conditionOptions[0]);
-  const [newPartGuarantee, setNewPartGuarantee] = useState(guaranteeOptions[0]);
-  const [newPartDescription, setNewPartDescription] = useState('');
-  const [newPartPrice, setNewPartPrice] = useState('');
-  const [newPartMedia, setNewPartMedia] = useState<MediaFile[]>([]);
-  const [partFormError, setPartFormError] = useState('');
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editPrice, setEditPrice] = useState('');
-
-  const photoInputRef = useRef<HTMLInputElement>(null);
-  const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
-  const [specialization, setSpecialization] = useState('');
-  const [yearsExperience, setYearsExperience] = useState('');
-  const [portfolioMedia, setPortfolioMedia] = useState<MediaFile[]>([]);
-  const [lightboxFile, setLightboxFile] = useState<MediaFile | null>(null);
+  const [condition, setCondition] = useState('New');
+  const [modelNo, setModelNo] = useState('');
+  const [yearManufactured, setYearManufactured] = useState('');
   
-  interface VideoLink {
-    id: string;
-    url: string;
-    videoId: string | null;
-  }
-  const [videoLinks, setVideoLinks] = useState<VideoLink[]>([]);
-  const [videoInput, setVideoInput] = useState('');
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
 
-  // --- VIDEO HELPER FUNCTIONS (Restored) ---
-  function extractYoutubeId(url: string): string | null {
-    const match = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-    return match ? match[1] : null;
-  }
+  const [profilePreview, setProfilePreview] = useState<string | null>(null);
+  const [profileMessage, setProfileMessage] = useState('');
 
-  function handleAddVideo() {
-    const trimmed = videoInput.trim();
-    if (trimmed === '') return;
-    setVideoLinks((prev) => [...prev, { id: `${Date.now()}`, url: trimmed, videoId: extractYoutubeId(trimmed) }]);
-    setVideoInput('');
+  useEffect(() => {
+    fetchMyListings();
+    fetchProfile();
+  }, []);
+
+  async function fetchMyListings() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data } = await supabase.from('products').select('*').eq('seller_id', user.id).order('created_at', { ascending: false });
+    if (data) setMyListings(data);
   }
 
-  function handleRemoveVideo(id: string) {
-    setVideoLinks((prev) => prev.filter((v) => v.id !== id));
+  async function fetchProfile() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data } = await supabase.from('profiles').select('avatar_url, full_name').eq('id', user.id).single();
+    if (data?.avatar_url) setProfilePreview(data.avatar_url);
   }
 
-  const [bankName, setBankName] = useState(bankOptions[0]);
-  const [accountNumber, setAccountNumber] = useState('');
-  const [accountName, setAccountName] = useState('');
-  const [verifying, setVerifying] = useState(false);
-  const [bankSaved, setBankSaved] = useState(false);
-
-  const [addressQuery, setAddressQuery] = useState('');
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [pinPos, setPinPos] = useState({ xPct: 50, yPct: 50 });
-  const [savedAddress, setSavedAddress] = useState<string | null>(null);
-  const [editingLocation, setEditingLocation] = useState(true);
-  const [gpsLoading, setGpsLoading] = useState(false);
-  const [gpsError, setGpsError] = useState('');
-
-  const coordinates = {
-    lat: (LAT_MAX - (pinPos.yPct / 100) * (LAT_MAX - LAT_MIN)).toFixed(5),
-    lng: (LNG_MIN + (pinPos.xPct / 100) * (LNG_MAX - LNG_MIN)).toFixed(5),
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      if (files.length + selectedFiles.length > 8) {
+        alert('You can only upload a maximum of 8 images.');
+        return;
+      }
+      setSelectedFiles([...selectedFiles, ...files]);
+      const newPreviews = files.map(file => URL.createObjectURL(file));
+      setPreviewUrls([...previewUrls, ...newPreviews]);
+    }
   };
 
-  const addressSuggestions = mockAddressBook.filter((a) => a.toLowerCase().includes(addressQuery.toLowerCase()));
+  const removeImage = (index: number) => {
+    setSelectedFiles(selectedFiles.filter((_, i) => i !== index));
+    setPreviewUrls(previewUrls.filter((_, i) => i !== index));
+  };
 
-  function handleSelectSuggestion(address: string) {
-    setAddressQuery(address);
-    setShowSuggestions(false);
-    setPinPos({ xPct: 50, yPct: 50 });
-  }
+  async function handlePublish(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setMessage('');
 
-  function handleMapClick(e: React.MouseEvent<HTMLDivElement>) {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const xPct = ((e.clientX - rect.left) / rect.width) * 100;
-    const yPct = ((e.clientY - rect.top) / rect.height) * 100;
-    setPinPos({ xPct: Math.max(0, Math.min(100, xPct)), yPct: Math.max(0, Math.min(100, yPct)) });
-  }
-
-  function handleUseGpsLocation() {
-    setGpsError('');
-    if (!navigator.geolocation) {
-      setGpsError('GPS is not supported on this device/browser.');
-      return;
-    }
-    setGpsLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setAddressQuery(`Current GPS Location (${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)})`);
-        setPinPos({ xPct: 50, yPct: 50 });
-        setGpsLoading(false);
-      },
-      () => {
-        setGpsError('Could not access your location. Please allow location permission and try again.');
-        setGpsLoading(false);
-      }
-    );
-  }
-
-  function handleSaveLocation() {
-    if (addressQuery.trim() === '') return;
-    setSavedAddress(addressQuery.trim());
-    setEditingLocation(false);
-  }
-
-  function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) setProfilePhotoUrl(URL.createObjectURL(file));
-  }
-
-  function handleVerifyAccount() {
-    if (accountNumber.trim().length < 10) return;
-    setVerifying(true);
-    setTimeout(() => {
-      setAccountName(artisanName);
-      setVerifying(false);
-    }, 900);
-  }
-
-  // --- REAL DATABASE SAVE LOGIC ---
-  async function handleSaveBank() {
-    if (!bankName || accountNumber.trim() === '' || accountName.trim() === '') {
-      alert('Please fill in all bank details.');
-      return;
-    }
-    
-    if (!currentProviderId) {
-      alert('System is still loading your profile. Please wait a second and try again.');
-      return;
-    }
-
-    setVerifying(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setMessage('Please sign in first.'); setLoading(false); return; }
 
     try {
-      const { data: existingBank } = await supabase
-        .from('provider_bank_details')
-        .select('id')
-        .eq('provider_id', currentProviderId)
-        .single();
+      // 1. Fetch your Profile Picture and Name to save with the product
+      const { data: profileData } = await supabase.from('profiles').select('avatar_url, full_name').eq('id', user.id).single();
+      const sellerLogo = profileData?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=ccff00&color=0F172A`;
+      const sellerName = profileData?.full_name || user.email;
 
-      let error;
-
-      if (existingBank) {
-        const res = await supabase
-          .from('provider_bank_details')
-          .update({ 
-            bank_name: bankName, 
-            account_number: accountNumber, 
-            account_name: accountName 
-          })
-          .eq('id', existingBank.id);
-        error = res.error;
-      } else {
-        const res = await supabase
-          .from('provider_bank_details')
-          .insert({ 
-            provider_id: currentProviderId, 
-            bank_name: bankName, 
-            account_number: accountNumber, 
-            account_name: accountName 
-          });
-        error = res.error;
+      // 2. Upload Product Images
+      const imageUrls: string[] = [];
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        const filePath = `${user.id}/${Date.now()}_${i}_${file.name}`;
+        const { error: uploadError } = await supabase.storage.from('product-images').upload(filePath, file);
+        if (uploadError) throw uploadError;
+        const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(filePath);
+        imageUrls.push(publicUrl);
       }
+
+      // 3. Save Product to Database (NOW INCLUDING SELLER LOGO & NAME)
+      const { error } = await supabase.from('products').insert([
+        {
+          seller_id: user.id,
+          name: name,
+          price: parseFloat(price),
+          category: category,
+          type: type,
+          description: description,
+          condition: type === 'Buy' ? condition : null,
+          model_no: type === 'Buy' ? modelNo : null,
+          year_manufactured: type === 'Buy' ? (yearManufactured ? parseInt(yearManufactured) : null) : null,
+          images: imageUrls,
+          seller_name: sellerName,
+          seller_logo: sellerLogo,
+          location: 'Lagos, Nigeria',
+        },
+      ]);
 
       if (error) throw error;
 
-      setBankSaved(true);
-      setTimeout(() => setBankSaved(false), 3000);
-      alert('Bank details saved successfully! 💰');
-
-    } catch (err: any) {
-      console.error('Error saving bank details:', err);
-      alert('Failed to save bank details: ' + err.message);
+      setMessage('✅ Service published successfully!');
+      setName(''); setPrice(''); setDescription('');
+      setModelNo(''); setYearManufactured('');
+      setSelectedFiles([]); setPreviewUrls([]);
+      setShowForm(false);
+      fetchMyListings();
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error: any) {
+      setMessage('❌ Error: ' + error.message);
     } finally {
-      setVerifying(false);
+      setLoading(false);
     }
   }
 
-  const profileChecklist = [
-    Boolean(profilePhotoUrl),
-    specialization.trim() !== '',
-    yearsExperience.trim() !== '',
-    portfolioMedia.length > 0,
-    videoLinks.length > 0,
-    Boolean(bankName) && accountNumber.trim() !== '' && accountName.trim() !== '',
-  ];
-  const profileCompletionPct = Math.round((profileChecklist.filter(Boolean).length / profileChecklist.length) * 100);
-
-  function handlePublishPart() {
-    const allFilled =
-      newPartMedia.length > 0 &&
-      newPartName.trim() !== '' &&
-      newPartModel.trim() !== '' &&
-      newPartNumber.trim() !== '' &&
-      newPartCondition !== '' &&
-      newPartGuarantee !== '' &&
-      newPartDescription.trim() !== '' &&
-      newPartPrice.trim() !== '';
-    if (!allFilled) {
-      setPartFormError('Please fill in all mandatory fields.');
-      return;
+  async function handleProfileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      setProfileMessage('Uploading...');
+      const filePath = `profiles/${user.id}/avatar_${Date.now()}`;
+      const { error: uploadError } = await supabase.storage.from('product-images').upload(filePath, file);
+      if (uploadError) { setProfileMessage('Upload failed'); return; }
+      const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(filePath);
+      setProfilePreview(publicUrl);
+      await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', user.id);
+      setProfileMessage('✅ Profile photo updated!');
+      setTimeout(() => setProfileMessage(''), 3000);
     }
-    setParts((prev) => [
-      ...prev,
-      {
-        id: `${Date.now()}`,
-        name: newPartName.trim(),
-        model: newPartModel.trim(),
-        partNumber: newPartNumber.trim(),
-        condition: newPartCondition,
-        guaranteePeriod: newPartGuarantee,
-        description: newPartDescription.trim(),
-        price: Number(newPartPrice) || 0,
-        media: newPartMedia,
-      },
-    ]);
-    setNewPartName('');
-    setNewPartModel('');
-    setNewPartNumber('');
-    setNewPartCondition(conditionOptions[0]);
-    setNewPartGuarantee(guaranteeOptions[0]);
-    setNewPartDescription('');
-    setNewPartPrice('');
-    setNewPartMedia([]);
-    setPartFormError('');
-    setShowAddPart(false);
   }
 
-  function startEdit(part: SparePart) {
-    setEditingId(part.id);
-    setEditName(part.name);
-    setEditPrice(String(part.price));
-  }
-
-  function saveEdit(id: string) {
-    setParts((prev) => prev.map((p) => (p.id === id ? { ...p, name: editName.trim() || p.name, price: Number(editPrice) || p.price } : p)));
-    setEditingId(null);
-  }
-
-  // --- GATEKEEPER: VERIFY TPWECAN ID ---
-  const handleVerifyTpwecan = async () => {
-    setVerifyingId(true);
-    setVerifyError('');
-
-    try {
-      // Check the registry table for a match
-      // IMPORTANT: Change 'tpwecan_registry' below if your table has a different name!
-      const { data: registryData, error: regError } = await supabase
-        .from('tpwecan_registry') 
-        .select('full_name, email, phone_number')
-        .eq('tpwecan_id', tpwecanInput.trim().toUpperCase())
-        .single();
-
-      if (regError || !registryData) {
-        setVerifyError('Invalid TPwecan ID. Please check the code and try again.');
-        setVerifyingId(false);
-        return;
-      }
-
-      // SUCCESS: Update the provider's profile to verified
-      const { error: updateError } = await supabase
-        .from('providers')
-        .update({ 
-          is_verified: true,
-          full_name: registryData.full_name || artisanName, // Auto-sync name if available
-        })
-        .eq('id', currentProviderId);
-
-      if (updateError) throw updateError;
-
-      // Unlock the dashboard!
-      setIsVerified(true);
-      setArtisanName(registryData.full_name || artisanName);
-      alert('✅ Identity Verified! Your dashboard is now fully unlocked.');
-
-    } catch (err: any) {
-      console.error('Verification Error:', err);
-      setVerifyError('An error occurred. Please try again.');
-    } finally {
-      setVerifyingId(false);
-    }
-  };
-
-  // --- SECURE DATA FETCH (Checks Login & Verification First) ---
-  useEffect(() => {
-    const initializeDashboard = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        router.push('/signin');
-        return;
-      }
-
-      try {
-        // Fetch provider profile using the secure session user ID
-        const { data: provider, error: providerError } = await supabase
-          .from('providers')
-          .select('*')
-          .eq('id', session.user.id) 
-          .single();
-
-        if (provider && !providerError) {
-          setCurrentProviderId(provider.id);
-          setArtisanName(provider.full_name || 'Provider');
-          setIsVerified(provider.is_verified || false); // THE GATEKEEPER CHECK
-          
-          // If verified, load the rest of the dashboard data
-          if (provider.is_verified) {
-            setSpecialization(provider.specialization || '');
-            setYearsExperience(provider.years_of_experience ? String(provider.years_of_experience) : '');
-            
-            const { data: bank, error: bankError } = await supabase
-              .from('provider_bank_details')
-              .select('*')
-              .eq('provider_id', provider.id)
-              .single();
-
-            if (bank && !bankError) {
-              setBankName(bank.bank_name);
-              setAccountNumber(bank.account_number);
-              setAccountName(bank.account_name);
-              setBankSaved(true); 
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-      } finally {
-        setLoading(false); 
-      }
-    };
-
-    initializeDashboard();
-  }, []);
-
-  // THE ANTI-FLASH SHIELD
-  if (loading) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center bg-[#0F172A]">
-        <div className="text-center">
-          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-[#ccff00] border-t-transparent"></div>
-          <p className="mt-4 text-white font-bold">Loading your dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // --- THE GATEKEEPER UI (If NOT verified) ---
-  if (!isVerified) {
-    return (
-      <PageShell>
-        <Head><title>Verify Identity — TPMarket</title></Head>
-        <LandingNavbar />
-        <div className="min-h-screen bg-sky-100 flex items-center justify-center py-10 px-4">
-          <div className="w-full max-w-md bg-[#0a192f] p-8 rounded-3xl shadow-2xl border border-gray-700 text-center">
-            <div className="flex justify-center mb-4">
-              <div className="w-20 h-20 bg-[#ccff00]/10 rounded-full flex items-center justify-center">
-                <Lock className="text-[#ccff00]" size={40} />
-              </div>
-            </div>
-            <h1 className="text-2xl font-black text-white mb-2">Dashboard Locked</h1>
-            <p className="text-gray-400 text-sm mb-6">To protect our marketplace, please verify your TPwecan ID to unlock your provider dashboard and start publishing jobs.</p>
-            
-            {verifyError && <div className="bg-red-500/10 border border-red-500/50 text-red-400 text-sm p-3 rounded-lg mb-4">{verifyError}</div>}
-            
-            <div className="space-y-4 text-left">
-              <div>
-                <label className="block text-gray-400 text-sm mb-1 font-bold">Enter TPwecan ID</label>
-                <input 
-                  type="text" 
-                  value={tpwecanInput} 
-                  onChange={(e) => setTpwecanInput(e.target.value)} 
-                  placeholder="e.g., WCN-EB185FDB" 
-                  className="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-600 focus:outline-none focus:border-[#ccff00] uppercase" 
-                />
-              </div>
-              <button 
-                onClick={handleVerifyTpwecan} 
-                disabled={verifyingId || !tpwecanInput} 
-                className="w-full bg-[#ccff00] text-[#0a192f] font-bold text-lg py-3 rounded-xl hover:bg-[#b3e600] disabled:opacity-50 transition shadow-lg flex items-center justify-center gap-2"
-              >
-                {verifyingId ? 'Verifying...' : <><Unlock size={20} /> Verify & Unlock Dashboard</>}
-              </button>
-            </div>
-            <p className="text-gray-500 text-xs mt-6">Don't have a TPwecan ID? <a href="/provider/register" className="text-[#ccff00] font-bold hover:underline">Register here</a></p>
-          </div>
-        </div>
-      </PageShell>
-    );
-  }
-
-  // --- THE FULL UNLOCKED DASHBOARD UI ---
   return (
-    <PageShell>
-      <Head>
-        <title>Provider Dashboard — TPMarket</title>
-      </Head>
-      <LandingNavbar />
+    <div className="min-h-screen bg-[#0F172A] text-white pb-24">
+      <Head><title>Provider Dashboard — TPMarket</title></Head>
 
-      <div className="max-w-3xl mx-auto px-6 py-10 relative">
-        {/* HEADER */}
-        <div className="bg-darkcard rounded-3xl p-6 border border-white/10 shadow-[0_20px_60px_rgba(15,23,42,0.35)] mb-6">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <h1 className="text-lg font-black text-white flex items-center gap-2">
-              <Unlock className="text-[#ccff00]" size={20} /> Welcome back, {artisanName} 👋
-            </h1>
-            <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1.5 bg-yellow/10 text-yellow text-xs font-black px-3 py-2 rounded-full whitespace-nowrap">
-                🪙 {tpCoins.toLocaleString()} TP Coins
-              </span>
-              <span className="flex items-center gap-1.5 bg-lemon/10 text-lemon text-xs font-black px-3 py-2 rounded-full whitespace-nowrap">
-                💰 ₦{walletBalance.toLocaleString()} Wallet
-              </span>
+      <div className="bg-gradient-to-r from-[#1E293B] to-[#0F172A] p-6 border-b border-white/10">
+        <h1 className="text-2xl font-black text-white">Provider Dashboard</h1>
+        <p className="text-slate-400 text-sm">Manage your services and track your growth.</p>
+      </div>
+
+      <div className="max-w-4xl mx-auto p-6 space-y-6">
+        <div className="bg-[#1E293B] p-6 rounded-2xl border border-white/10 flex flex-col items-center text-center">
+          <label className="relative cursor-pointer group">
+            <div className="w-24 h-24 rounded-full bg-[#0F172A] border-2 border-dashed border-[#ccff00] flex items-center justify-center overflow-hidden">
+              {profilePreview ? <img src={profilePreview} alt="Profile" className="w-full h-full object-cover" /> : <User className="text-[#ccff00]" size={32} />}
             </div>
+            <input type="file" accept="image/*" className="hidden" onChange={handleProfileUpload} />
+            <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <span className="text-white text-xs font-bold">Change</span>
+            </div>
+          </label>
+          <h3 className="text-white font-bold mt-3">Provider Profile Photo</h3>
+          <p className="text-xs text-slate-400 mb-2">This will be your logo on all your listings</p>
+          {profileMessage && <p className="text-xs text-[#ccff00] font-bold">{profileMessage}</p>}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-[#1E293B] p-4 rounded-2xl border border-white/10">
+            <Package className="text-[#ccff00] mb-2" size={24} />
+            <p className="text-2xl font-black">{myListings.length}</p>
+            <p className="text-xs text-slate-400">Active Services</p>
+          </div>
+          <div className="bg-[#1E293B] p-4 rounded-2xl border border-white/10">
+            <TrendingUp className="text-[#ccff00] mb-2" size={24} />
+            <p className="text-2xl font-black">₦0</p>
+            <p className="text-xs text-slate-400">Total Earnings</p>
           </div>
         </div>
 
-        {/* PUBLIC PROFILE & PAYOUT SETUP */}
-        <div className="bg-darkcard rounded-3xl p-6 sm:p-8 border border-white/10 shadow-[0_20px_60px_rgba(15,23,42,0.35)] mb-6">
-          <div className="flex items-center justify-between text-xs mb-2">
-            <span className="text-white font-black">Profile Completion: {profileCompletionPct}%</span>
-          </div>
-          <div className="w-full h-2.5 bg-white/10 rounded-full overflow-hidden mb-2">
-            <div className="h-full bg-lemon rounded-full transition-all" style={{ width: `${profileCompletionPct}%` }} />
-          </div>
-          <p className="text-slate text-xs mb-6">Complete your profile to get 3x more job requests from customers!</p>
-
-          {/* Build Your Public Profile */}
-          <div className="bg-white/5 rounded-2xl p-5 mb-5">
-            <h3 className="flex items-center gap-2 text-white font-black text-sm mb-4">
-              <UserCircle2 className="text-lemon" size={18} /> Build Your Public Profile
-            </h3>
-            <div className="flex flex-col sm:flex-row items-center gap-5">
-              <button
-                type="button"
-                onClick={() => photoInputRef.current?.click()}
-                className="relative w-24 h-24 rounded-full bg-[#0F172A] border-2 border-dashed border-white/20 flex items-center justify-center shrink-0 overflow-hidden hover:border-lemon/50 transition-colors"
-              >
-                {profilePhotoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={profilePhotoUrl} alt="Profile" className="w-full h-full object-cover" />
-                ) : (
-                  <Camera className="text-slate" size={26} />
-                )}
-                <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoSelect} />
-              </button>
-              <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-slate text-xs font-semibold mb-1.5 block">Main Field of Specialization</label>
-                  <input
-                    type="text"
-                    value={specialization}
-                    onChange={(e) => setSpecialization(e.target.value)}
-                    placeholder="e.g. Mobile Vulcanizer, EV Car Mechanic"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50"
-                  />
-                </div>
-                <div>
-                  <label className="text-slate text-xs font-semibold mb-1.5 block">Years of Experience</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={yearsExperience}
-                    onChange={(e) => setYearsExperience(e.target.value)}
-                    placeholder="e.g. 5"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Portfolio Gallery */}
-          <div className="bg-white/5 rounded-2xl p-5 mb-5">
-            <h3 className="flex items-center gap-2 text-white font-black text-sm mb-1">
-              <ImagePlus className="text-purple" size={18} /> Showcase Your Work (Up to 8 Images)
-            </h3>
-            <p className="text-slate text-xs mb-4">Customers will be able to slide through these on your public profile.</p>
-            <MediaUploader
-              buttonLabel="Upload Work Photo"
-              helperText="Show off your best completed jobs"
-              onOpenLightbox={setLightboxFile}
-              onChange={setPortfolioMedia}
-              maxFiles={8}
-            />
-          </div>
-
-          {/* Video Portfolio */}
-          <div className="bg-white/5 rounded-2xl p-5 mb-5">
-            <h3 className="flex items-center gap-2 text-white font-black text-sm mb-1">
-              <Youtube className="text-red-400" size={18} /> Showcase Your Skills (Video Portfolio)
-            </h3>
-            <p className="text-slate text-xs mb-4">
-              Customers will be able to watch these videos directly on your public profile to verify your work quality.
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-2 mb-4">
-              <input
-                type="url"
-                value={videoInput}
-                onChange={(e) => setVideoInput(e.target.value)}
-                placeholder="Paste a YouTube video link…"
-                className="flex-1 bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50"
-              />
-              <button
-                onClick={handleAddVideo}
-                className="flex items-center justify-center gap-1.5 bg-lemon text-[#0F172A] font-black text-sm px-4 py-3 rounded-xl hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(204,255,0,0.5)] transition-all shrink-0"
-              >
-                <Plus size={16} /> Add Video Link
-              </button>
+        {!showForm ? (
+          <button onClick={() => setShowForm(true)} className="w-full flex items-center justify-center gap-2 bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-2xl hover:scale-[1.02] transition-all shadow-lg shadow-[#ccff00]/20">
+            <Plus size={20} /> Publish New Service
+          </button>
+        ) : (
+          <div className="bg-[#1E293B] p-6 rounded-2xl border border-[#ccff00]/30 shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-white">Add New Service/Product</h2>
+              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-white">Cancel</button>
             </div>
 
-            {videoLinks.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {videoLinks.map((v) => (
-                  <div key={v.id} className="relative">
-                    <a href={v.url} target="_blank" rel="noopener noreferrer" className="block">
-                      {v.videoId ? (
-                        <div className="relative aspect-video rounded-xl overflow-hidden bg-white/10">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={`https://img.youtube.com/vi/${v.videoId}/hqdefault.jpg`}
-                            alt="YouTube video thumbnail"
-                            className="w-full h-full object-cover"
-                          />
-                          <span className="absolute inset-0 flex items-center justify-center bg-black/25">
-                            <PlayCircle className="text-white drop-shadow" size={26} />
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="aspect-video rounded-xl bg-white/10 flex items-center justify-center p-2">
-                          <p className="text-slate text-[10px] text-center truncate">{v.url}</p>
-                        </div>
-                      )}
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveVideo(v.id)}
-                      aria-label="Remove video"
-                      className="absolute top-1 right-1 w-6 h-6 rounded-full bg-[#0F172A]/80 text-white flex items-center justify-center hover:bg-red-500 transition-colors"
-                    >
-                      <X size={13} />
-                    </button>
-                  </div>
-                ))}
+            {message && (
+              <div className={`p-3 rounded-xl mb-4 text-center font-bold text-sm ${message.includes('✅') ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                {message}
               </div>
             )}
-          </div>
 
-          {/* Payout & Bank Details */}
-          <div className="bg-white/5 rounded-2xl p-5">
-            <h3 className="flex items-center gap-2 text-white font-black text-sm mb-1">
-              <Landmark className="text-sky" size={18} /> Where should we send your money?
-            </h3>
-            <p className="text-slate text-xs mb-4">Payout & Bank Details</p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Bank Name</label>
-                <select
-                  value={bankName}
-                  onChange={(e) => setBankName(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-lemon/50"
-                >
-                  {bankOptions.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
+            <form onSubmit={handlePublish} className="space-y-4">
+              <input type="text" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Name (e.g. iPhone 15 Pro or AC Repair)" className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
+              <input type="number" required value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Price in Naira" className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
+              <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description..." className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none h-24" />
+              
+              <div className="grid grid-cols-2 gap-4">
+                <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none">
+                  <option>Mechanics</option><option>Tailors & Fashion</option><option>Electricians</option><option>Home Services</option><option>Car Spare Parts</option><option>Electronics</option>
+                </select>
+                <select value={type} onChange={(e) => setType(e.target.value)} className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none">
+                  <option value="Book">Book a Service</option>
+                  <option value="Buy">Sell a Product</option>
                 </select>
               </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Account Number</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={accountNumber}
-                    onChange={(e) => {
-                      setAccountNumber(e.target.value.replace(/\D/g, '').slice(0, 10));
-                      setAccountName('');
-                    }}
-                    onBlur={handleVerifyAccount}
-                    placeholder="0123456789"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-4 pr-9 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50"
-                  />
-                  {verifying && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate text-[10px]">...</span>}
-                </div>
-              </div>
-            </div>
 
-            <div className="mb-4">
-              <label className="text-slate text-xs font-semibold mb-1.5 block">Account Name</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={accountName}
-                  onChange={(e) => setAccountName(e.target.value)}
-                  placeholder="Auto-fills after verification, or type manually"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-4 pr-9 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50"
-                />
-                {accountName && <BadgeCheck className="absolute right-3 top-1/2 -translate-y-1/2 text-lemon" size={16} />}
-              </div>
-            </div>
-
-            <button
-              onClick={handleSaveBank}
-              className="w-full bg-lemon text-[#0F172A] font-black py-3.5 rounded-full hover:scale-[1.02] hover:shadow-[0_0_25px_rgba(204,255,0,0.5)] transition-all"
-            >
-              {bankSaved ? 'Saved! ✅' : 'Save Bank Details'}
-            </button>
-          </div>
-
-          {/* Business Location */}
-          <div className="bg-white/5 rounded-2xl p-5 mt-5">
-            <h3 className="flex items-center gap-2 text-white font-black text-sm mb-1">
-              <MapPin className="text-lemon" size={18} /> Where can customers find you?
-            </h3>
-            <p className="text-slate text-xs mb-4">Set Your Workshop Location</p>
-
-            {!editingLocation && savedAddress ? (
-              <div className="bg-[#0F172A] border border-white/10 rounded-2xl p-4">
-                <p className="text-slate text-xs font-bold uppercase tracking-wide mb-1">Your Workshop Location</p>
-                <p className="text-white text-sm font-semibold mb-3">Your workshop is located at: {savedAddress}</p>
-                <button
-                  onClick={() => setEditingLocation(true)}
-                  className="text-xs font-bold text-lemon border border-lemon/30 rounded-full px-4 py-2 hover:bg-lemon/10 transition-colors"
-                >
-                  Edit Location
-                </button>
-              </div>
-            ) : (
-              <>
-                <div className="relative mb-3">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate" size={16} />
-                  <input
-                    type="text"
-                    value={addressQuery}
-                    onChange={(e) => {
-                      setAddressQuery(e.target.value);
-                      setShowSuggestions(true);
-                    }}
-                    onFocus={() => setShowSuggestions(true)}
-                    placeholder="Search your address or landmark"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50"
-                  />
-                  {showSuggestions && addressQuery && addressSuggestions.length > 0 && (
-                    <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-[#0F172A] border border-white/10 rounded-xl overflow-hidden shadow-lg">
-                      {addressSuggestions.map((a) => (
-                        <button
-                          key={a}
-                          type="button"
-                          onClick={() => handleSelectSuggestion(a)}
-                          className="block w-full text-left px-4 py-2.5 text-xs text-white hover:bg-white/10 transition-colors"
-                        >
-                          {a}
-                        </button>
-                      ))}
+              {type === 'Buy' && (
+                <div className="bg-[#0F172A] p-4 rounded-xl border border-[#ccff00]/20 space-y-4">
+                  <h3 className="text-sm font-bold text-[#ccff00] uppercase flex items-center gap-2"><Package size={16} /> Product Specific Details</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 mb-1 block">Condition</label>
+                      <select value={condition} onChange={(e) => setCondition(e.target.value)} className="w-full bg-[#1E293B] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none">
+                        <option value="New">Brand New</option><option value="Used">Used</option>
+                      </select>
                     </div>
-                  )}
-                </div>
-
-                <div
-                  onClick={handleMapClick}
-                  className="relative w-full aspect-[16/9] rounded-2xl overflow-hidden cursor-crosshair mb-2 bg-[linear-gradient(0deg,transparent_24%,rgba(255,255,255,0.08)_25%,rgba(255,255,255,0.08)_26%,transparent_27%,transparent_74%,rgba(255,255,255,0.08)_75%,rgba(255,255,255,0.08)_76%,transparent_77%,transparent),linear-gradient(90deg,transparent_24%,rgba(255,255,255,0.08)_25%,rgba(255,255,255,0.08)_26%,transparent_27%,transparent_74%,rgba(255,255,255,0.08)_75%,rgba(255,255,255,0.08)_76%,transparent_77%,transparent)] bg-[length:25%_25%] bg-sky/20 border border-white/10"
-                >
-                  <div
-                    className="absolute -translate-x-1/2 -translate-y-full"
-                    style={{ left: `${pinPos.xPct}%`, top: `${pinPos.yPct}%` }}
-                  >
-                    <MapPin className="text-lemon drop-shadow-[0_0_8px_rgba(204,255,0,0.8)]" size={32} fill="#CCFF00" fillOpacity={0.25} />
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 mb-1 block">Year Manufactured</label>
+                      <input type="number" value={yearManufactured} onChange={(e) => setYearManufactured(e.target.value)} placeholder="e.g. 2023" className="w-full bg-[#1E293B] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
+                    </div>
                   </div>
-                  <span className="absolute bottom-2 right-2 text-[10px] font-bold bg-[#0F172A]/80 text-slate px-2 py-1 rounded-full">
-                    Tap the map to drop your pin
-                  </span>
-                </div>
-
-                <p className="text-slate text-xs font-semibold mb-4">
-                  Lat: {coordinates.lat} · Lng: {coordinates.lng}
-                </p>
-
-                <button
-                  onClick={handleUseGpsLocation}
-                  disabled={gpsLoading}
-                  className="w-full flex items-center justify-center gap-2 bg-lemon text-[#0F172A] font-black py-3 rounded-full mb-2 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(204,255,0,0.5)] transition-all disabled:opacity-60"
-                >
-                  <Navigation size={16} /> {gpsLoading ? 'Locating…' : ' Use My Current GPS Location'}
-                </button>
-                {gpsError && <p className="text-red-400 text-xs font-semibold mb-2">{gpsError}</p>}
-
-                <button
-                  onClick={handleSaveLocation}
-                  disabled={addressQuery.trim() === ''}
-                  className="w-full bg-white/10 text-white font-bold py-3 rounded-full hover:bg-white/20 transition-colors disabled:opacity-50"
-                >
-                  Save Location
-                </button>
-              </>
-            )}
-
-            <p className="text-slate/70 text-[11px] mt-4">
-              Customers will see your location on the map when searching for nearby specialists.
-            </p>
-          </div>
-        </div>
-
-        {/* SECTION 1: PIT CREW EQUIPMENT */}
-        <div className="bg-darkcard rounded-3xl p-6 sm:p-8 border border-white/10 shadow-[0_20px_60px_rgba(15,23,42,0.35)] mb-6">
-          <h2 className="flex items-center gap-2 text-white font-black text-lg mb-1">
-            <Wrench className="text-lemon" size={20} /> My Managed Equipment (Pit Crew)
-          </h2>
-          <p className="text-slate text-xs mb-5">Equipment Tagged to You</p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {taggedEquipment.map((eq, i) => (
-              <div key={i} className="bg-white/5 rounded-2xl p-4">
-                <p className="text-white font-bold text-sm">{eq.type}</p>
-                <p className="text-slate text-xs mb-1">Model: {eq.model}</p>
-                <p className="text-slate text-xs mb-3">Customer: {eq.customer}</p>
-                <button className="w-full flex items-center justify-center gap-1.5 bg-lemon/10 text-lemon text-xs font-bold px-3 py-2.5 rounded-full hover:bg-lemon/20 transition-colors">
-                  <MessageCircle size={14} /> View Details & Chat
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* SECTION 2: ACTIVE JOBS */}
-        <div className="bg-darkcard rounded-3xl p-6 sm:p-8 border border-white/10 shadow-[0_20px_60px_rgba(15,23,42,0.35)] mb-6">
-          <h2 className="flex items-center gap-2 text-white font-black text-lg mb-1">
-            <Briefcase className="text-purple" size={20} /> Active Jobs & Quotes
-          </h2>
-          <p className="text-slate text-xs mb-5">Current Jobs</p>
-
-          <div className="bg-white/5 rounded-2xl p-5">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-white font-bold text-sm">Generator Repair</p>
-              <span className="text-[10px] font-black px-3 py-1 rounded-full bg-yellow/10 text-yellow">In Progress</span>
-            </div>
-            <p className="flex items-center gap-1.5 text-lemon text-xs font-bold">
-              <ShieldCheck size={14} /> 90-Day Guarantee Active
-            </p>
-          </div>
-        </div>
-
-        {/* SECTION 3: SPARE PARTS STORE */}
-        <div className="bg-darkcard rounded-3xl p-6 sm:p-8 border border-white/10 shadow-[0_20px_60px_rgba(15,23,42,0.35)] mb-6">
-          <h2 className="flex items-center gap-2 text-white font-black text-lg mb-1">
-            <ShoppingBag className="text-sky" size={20} /> My Spare Parts Store
-          </h2>
-          <p className="text-slate text-xs mb-5">Sell Parts & Accessories</p>
-
-          <button
-            onClick={() => setShowAddPart((v) => !v)}
-            className="flex items-center gap-1.5 bg-lemon text-[#0F172A] font-black text-sm px-4 py-2.5 rounded-full mb-4 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(204,255,0,0.5)] transition-all"
-          >
-            <Plus size={16} /> List New Part for Sale
-          </button>
-
-          {showAddPart && (
-            <div className="bg-white/5 rounded-2xl p-5 mb-4 space-y-4">
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">
-                  Upload Product Image <span className="text-red-400">*</span>
-                </label>
-                <MediaUploader
-                  buttonLabel="Upload Product Image"
-                  helperText="Show the part clearly"
-                  onOpenLightbox={setLightboxFile}
-                  onChange={setNewPartMedia}
-                  maxFiles={1}
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-slate text-xs font-semibold mb-1.5 block">
-                    Name of Part <span className="text-red-400">*</span>
-                  </label>
-                  <input type="text" value={newPartName} onChange={(e) => setNewPartName(e.target.value)} placeholder="e.g. Toyota Brake Pads" className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-                </div>
-                <div>
-                  <label className="text-slate text-xs font-semibold mb-1.5 block">
-                    Part Model <span className="text-red-400">*</span>
-                  </label>
-                  <input type="text" value={newPartModel} onChange={(e) => setNewPartModel(e.target.value)} placeholder="e.g. Camry 2015-2019" className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-                </div>
-                <div>
-                  <label className="text-slate text-xs font-semibold mb-1.5 block">
-                    Product Number / Part Number <span className="text-red-400">*</span>
-                  </label>
-                  <input type="text" value={newPartNumber} onChange={(e) => setNewPartNumber(e.target.value)} placeholder="e.g. BP-4471" className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-                </div>
-                <div>
-                  <label className="text-slate text-xs font-semibold mb-1.5 block">
-                    Condition <span className="text-red-400">*</span>
-                  </label>
-                  <select value={newPartCondition} onChange={(e) => setNewPartCondition(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">
-                    {conditionOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-slate text-xs font-semibold mb-1.5 block">
-                    Guarantee Period <span className="text-red-400">*</span>
-                  </label>
-                  <select value={newPartGuarantee} onChange={(e) => setNewPartGuarantee(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">
-                    {guaranteeOptions.map((g) => <option key={g} value={g}>{g}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-slate text-xs font-semibold mb-1.5 block">
-                    Price <span className="text-red-400">*</span>
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate font-bold"></span>
-                    <input type="number" min={0} value={newPartPrice} onChange={(e) => setNewPartPrice(e.target.value)} placeholder="15000" className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-8 pr-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 mb-1 block">Model Number / Name</label>
+                    <input type="text" value={modelNo} onChange={(e) => setModelNo(e.target.value)} placeholder="e.g. A2848, Galaxy S24" className="w-full bg-[#1E293B] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
                   </div>
                 </div>
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">
-                  Description <span className="text-red-400">*</span>
-                </label>
-                <textarea value={newPartDescription} onChange={(e) => setNewPartDescription(e.target.value)} rows={3} placeholder="Describe the part's condition, fitment, and any details buyers should know" className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50 resize-none" />
-              </div>
+              )}
 
-              {partFormError && <p className="text-red-400 text-xs font-semibold">{partFormError}</p>}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase">Upload Images (Max 8)</label>
+                <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-white/20 rounded-xl p-6 text-center cursor-pointer hover:border-[#ccff00]/50 transition-all bg-[#0F172A]">
+                  <Upload className="mx-auto text-slate-400 mb-2" size={24} />
+                  <p className="text-sm text-slate-400">Click to select images</p>
+                  <input type="file" ref={fileInputRef} multiple accept="image/*" onChange={handleFileChange} className="hidden" />
+                </div>
 
-              <button onClick={handlePublishPart} className="w-full bg-lemon text-[#0F172A] font-black py-3.5 rounded-full hover:scale-[1.02] hover:shadow-[0_0_25px_rgba(204,255,0,0.5)] transition-all">
-                Publish
-              </button>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            {parts.map((part) => (
-              <div key={part.id} className="flex items-center justify-between gap-3 bg-white/5 rounded-2xl px-4 py-3">
-                {editingId === part.id ? (
-                  <>
-                    <div className="flex-1 flex gap-2">
-                      <input value={editName} onChange={(e) => setEditName(e.target.value)} className="flex-1 bg-white/10 border border-white/10 rounded-lg py-1.5 px-2 text-sm text-white focus:outline-none focus:border-lemon/50" />
-                      <input type="number" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} className="w-24 bg-white/10 border border-white/10 rounded-lg py-1.5 px-2 text-sm text-white focus:outline-none focus:border-lemon/50" />
-                    </div>
-                    <button onClick={() => saveEdit(part.id)} aria-label="Save" className="w-8 h-8 rounded-full bg-lemon/20 text-lemon flex items-center justify-center hover:bg-lemon/30 transition-colors shrink-0">
-                      <Check size={14} />
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-white text-sm font-semibold">
-                      {part.name} — ₦{part.price.toLocaleString()}
-                    </p>
-                    <button
-                      onClick={() => startEdit(part)}
-                      className="flex items-center gap-1 text-xs font-bold text-slate hover:text-white px-3 py-1.5 rounded-full border border-white/10 hover:border-white/30 transition-colors shrink-0"
-                    >
-                      <Pencil size={12} /> Edit
-                    </button>
-                  </>
+                {previewUrls.length > 0 && (
+                  <div className="grid grid-cols-4 gap-2 mt-2">
+                    {previewUrls.map((url, index) => (
+                      <div key={index} className="relative aspect-square rounded-lg overflow-hidden border border-white/10">
+                        <img src={url} alt={`Preview ${index}`} className="w-full h-full object-cover" />
+                        <button type="button" onClick={() => removeImage(index)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"><X size={12} /></button>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
-            ))}
-          </div>
-        </div>
 
-        {/* SECTION 4: EMERGENCY RESPONDER SETTINGS */}
-        <div className="bg-darkcard rounded-3xl p-6 sm:p-8 border border-white/10 shadow-[0_20px_60px_rgba(15,23,42,0.35)]">
-          <h2 className="flex items-center gap-2 text-white font-black text-lg mb-1">
-            <Siren className="text-red-400" size={20} /> Emergency Responder Settings
-          </h2>
-          <p className="text-slate text-xs mb-5">24/7 Emergency Availability</p>
-
-          <div className="flex items-center justify-between bg-white/5 rounded-2xl p-4 mb-5">
-            <div>
-              <p className="text-white font-bold text-sm">Available for Emergencies</p>
-              <p className="text-slate text-xs">Customers can call you for urgent jobs, any time.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setEmergencyAvailable((v) => !v)}
-              aria-label="Toggle emergency availability"
-              className={`relative w-14 h-8 rounded-full shrink-0 transition-colors ${emergencyAvailable ? 'bg-lemon' : 'bg-white/15'}`}
-            >
-              <span className={`absolute top-1 w-6 h-6 rounded-full bg-[#0F172A] transition-all ${emergencyAvailable ? 'left-7' : 'left-1'}`} />
-            </button>
+              <button type="submit" disabled={loading} className="w-full bg-[#ccff00] text-[#0F172A] font-black py-3 rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                {loading ? 'Uploading...' : 'Publish to Marketplace'}
+              </button>
+            </form>
           </div>
+        )}
 
-          <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${emergencyAvailable ? '' : 'opacity-40 pointer-events-none'}`}>
-            <div>
-              <label className="text-slate text-xs font-semibold mb-1.5 block">Daytime Fee (₦)</label>
-              <input type="number" min={0} value={daytimeFee} onChange={(e) => setDaytimeFee(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-sm text-white focus:outline-none focus:border-lemon/50" />
+        <div>
+          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><CheckCircle size={18} className="text-[#ccff00]" /> My Active Services</h2>
+          {myListings.length === 0 ? (
+            <p className="text-slate-400 text-center py-8 bg-[#1E293B] rounded-2xl border border-white/5">You haven't published any services yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {myListings.map((item: any) => (
+                <div key={item.id} className="bg-[#1E293B] p-4 rounded-2xl border border-white/10 flex gap-4 items-center">
+                  {item.images && item.images.length > 0 ? <img src={item.images[0]} alt={item.name} className="w-16 h-16 rounded-xl object-cover" /> : <div className="w-16 h-16 rounded-xl bg-white/5 flex items-center justify-center"><ImageIcon className="text-slate-500" size={24} /></div>}
+                  <div className="flex-1">
+                    <h3 className="font-bold text-white">{item.name}</h3>
+                    <p className="text-xs text-slate-400">{item.category} • {item.type} {item.condition && `• ${item.condition}`}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-black text-[#ccff00]">₦{item.price?.toLocaleString()}</p>
+                    <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-1 rounded-full font-bold">Active</span>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div>
-              <label className="text-slate text-xs font-semibold mb-1.5 block">Late Night Fee (₦)</label>
-              <input type="number" min={0} value={lateNightFee} onChange={(e) => setLateNightFee(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-sm text-white focus:outline-none focus:border-lemon/50" />
-            </div>
-            <div>
-              <label className="text-slate text-xs font-semibold mb-1.5 block">Midnight Fee (₦)</label>
-              <input type="number" min={0} value={midnightFee} onChange={(e) => setMidnightFee(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-sm text-white focus:outline-none focus:border-lemon/50" />
-            </div>
-            <div>
-              <label className="text-slate text-xs font-semibold mb-1.5 block">Very Early Morning Fee (₦)</label>
-              <input type="number" min={0} value={earlyMorningFee} onChange={(e) => setEarlyMorningFee(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-sm text-white focus:outline-none focus:border-lemon/50" />
-            </div>
-          </div>
+          )}
         </div>
       </div>
-
-      <MediaLightbox file={lightboxFile} onClose={() => setLightboxFile(null)} />
-    </PageShell>
+      <BottomNav />
+    </div>
   );
 }
