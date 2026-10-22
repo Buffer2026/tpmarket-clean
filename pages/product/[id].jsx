@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
 import BottomNav from '../../components/BottomNav';
 import { 
@@ -49,7 +50,6 @@ export default function ProductDetailPage() {
       
       if (error) throw error;
       
-      // Format data safely, providing fallbacks if fields are empty
       setProduct({
         ...data,
         images: data.images && data.images.length > 0 ? data.images : ['https://images.unsplash.com/photo-1581092921461-eab62e97a782?w=800'],
@@ -59,7 +59,8 @@ export default function ProductDetailPage() {
         country: data.country || "Nigeria",
         state: data.state || "Lagos State",
         address: data.address || "Address not specified",
-        rating: data.rating || 5.0
+        rating: data.rating || 5.0,
+        price: data.price || 0
       });
     } catch (error) {
       console.error('Error fetching product:', error);
@@ -128,7 +129,7 @@ export default function ProductDetailPage() {
   return (
     <div className="min-h-screen bg-[#0F172A] text-white pb-24">
       
-      {/* 1. IMAGE GALLERY (Auto-slide + 4-view manual) */}
+      {/* 1. IMAGE GALLERY */}
       <div className="relative bg-[#1E293B]">
         <div className="relative h-80 w-full overflow-hidden">
           <img src={product.images[currentImage]} alt={product.name} className="w-full h-full object-cover transition-all duration-500" />
@@ -161,16 +162,15 @@ export default function ProductDetailPage() {
           </div>
           <div className="bg-gradient-to-r from-[#ccff00] to-yellow-400 rounded-2xl px-6 py-4 shadow-lg text-center inline-block">
             <div className="text-sm font-bold text-[#0F172A]">PRICE</div>
-            <div className="text-3xl font-black text-[#0F172A]">₦{product.price.toLocaleString()}</div>
+            <div className="text-3xl font-black text-[#0F172A]">₦{(product.price || 0).toLocaleString()}</div>
           </div>
         </div>
 
-        {/* 3. DESCRIPTION & OPTION 3 WARNING */}
+        {/* 3. DESCRIPTION & WARNING */}
         <div className="bg-[#1E293B] p-5 rounded-2xl border border-white/10 space-y-4">
           <h2 className="text-xl font-bold text-white">Description</h2>
           <p className="text-slate-300 text-sm leading-relaxed">{product.description || 'No description provided.'}</p>
           
-          {/* ⚠️ OPTION 3 WARNING BOX */}
           <div className="bg-red-500/10 border border-red-500/30 p-4 rounded-xl flex gap-3 items-start">
             <span className="text-2xl">⚠️</span>
             <div>
@@ -187,7 +187,10 @@ export default function ProductDetailPage() {
           <div className="flex items-center gap-4">
             <img src={product.seller_logo} alt="Seller" className="w-14 h-14 rounded-full border-2 border-[#ccff00]" />
             <div>
-              <h3 className="font-bold text-white text-lg">{product.seller_name}</h3>
+              {/* ✨ CLICKABLE SELLER NAME LINKED TO PROFILE  */}
+              <Link href={`/provider/${product.seller_id}`} className="hover:text-[#ccff00] transition-colors cursor-pointer block">
+                <h3 className="font-bold text-white text-lg">{product.seller_name}</h3>
+              </Link>
               <div className="flex items-center gap-1.5 text-sm text-slate-400">
                 <Briefcase size={14} className="text-[#ccff00]" /> 
                 {product.years_experience} Years Experience
@@ -201,6 +204,11 @@ export default function ProductDetailPage() {
               <span>{product.address}, {product.state}, {product.country}</span>
             </div>
           </div>
+
+          {/* REQUEST A QUOTE BUTTON */}
+          <Link href="/quote-request" className="w-full bg-[#1E293B] border border-[#ccff00] text-[#ccff00] font-bold py-3.5 rounded-xl hover:bg-[#ccff00]/10 transition-all flex items-center justify-center gap-2 mt-2">
+            📋 Request a Custom Quote
+          </Link>
         </div>
       </div>
 
@@ -219,7 +227,7 @@ export default function ProductDetailPage() {
 
       <BottomNav />
 
-      {/* 6. PAYMENT MODAL (Cash vs Installment) */}
+      {/* 6. PAYMENT MODAL */}
       {showPaymentModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
           <div className="bg-[#1E293B] w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 max-h-[90vh] overflow-y-auto border border-white/10">
@@ -228,7 +236,6 @@ export default function ProductDetailPage() {
               <button onClick={() => { setShowPaymentModal(false); setSelectedInstallment(null); }}><X className="text-slate-400 hover:text-white" /></button>
             </div>
 
-            {/* Cash Option */}
             <button 
               onClick={() => { alert('Proceeding to Cash Checkout...'); setShowPaymentModal(false); }}
               className="w-full bg-[#0F172A] border-2 border-[#ccff00] p-4 rounded-2xl mb-4 text-left flex justify-between items-center hover:bg-[#0F172A]/80 transition-all"
@@ -237,14 +244,13 @@ export default function ProductDetailPage() {
                 <p className="font-bold text-white text-lg">💵 Cash Payment</p>
                 <p className="text-xs text-slate-400">Pay full amount now</p>
               </div>
-              <p className="font-black text-[#ccff00]">₦{product.price.toLocaleString()}</p>
+              <p className="font-black text-[#ccff00]">₦{(product.price || 0).toLocaleString()}</p>
             </button>
 
-            {/* Installment Options */}
             <p className="text-sm font-bold text-slate-400 mb-3">Or pay in installments:</p>
             <div className="grid grid-cols-2 gap-3 mb-6">
               {installmentOptions.map((months) => {
-                const monthly = (product.price / months).toLocaleString(undefined, { maximumFractionDigits: 0 });
+                const monthly = ((product.price || 0) / months).toLocaleString(undefined, { maximumFractionDigits: 0 });
                 return (
                   <button
                     key={months}
@@ -282,7 +288,7 @@ export default function ProductDetailPage() {
               <h2 className="text-xl font-black text-white">Make an Offer</h2>
               <button onClick={() => setShowNegotiate(false)}><X className="text-slate-400 hover:text-white" /></button>
             </div>
-            <p className="text-slate-400 text-sm mb-4">Current Price: ₦{product.price.toLocaleString()}</p>
+            <p className="text-slate-400 text-sm mb-4">Current Price: ₦{(product.price || 0).toLocaleString()}</p>
             <input 
               type="number" 
               placeholder="Enter your offer price (₦)" 

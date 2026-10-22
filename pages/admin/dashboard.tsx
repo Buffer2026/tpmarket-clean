@@ -1,149 +1,180 @@
-import { useState } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
+import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
-import { ArrowLeft, Wallet, Percent, Gift, Users, BarChart3 } from 'lucide-react';
-import PageShell from '../../components/PageShell';
-import LandingNavbar from '../../components/LandingNavbar';
+import { supabase } from '../../lib/supabase'; 
+import BottomNav from '../../components/BottomNav';
+import { Plus, Package, TrendingUp, CheckCircle, Edit3 } from 'lucide-react';
 
-interface PlatformUser {
-  name: string;
-  phone: string;
-  email: string;
-  role: 'Customer' | 'Provider';
-  active: boolean;
-}
+export default function Dashboard() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+  const [showForm, setShowForm] = useState(false); 
+  const [myListings, setMyListings] = useState<any[]>([]);
 
-const initialUsers: PlatformUser[] = [
-  { name: 'Amara Okafor', phone: '+234 801 234 5678', email: 'amara@example.com', role: 'Customer', active: true },
-  { name: 'Kunle Adebayo', phone: '+234 706 335 1745', email: 'kunle@example.com', role: 'Provider', active: true },
-  { name: 'Chidinma Eze', phone: '+234 802 111 2222', email: 'chidinma@example.com', role: 'Customer', active: true },
-  { name: 'Tunde Bakare', phone: '+234 803 333 4444', email: 'tunde@example.com', role: 'Provider', active: true },
-  { name: 'Ifeanyi Obi', phone: '+234 804 555 6666', email: 'ifeanyi@example.com', role: 'Provider', active: true },
-  { name: 'Amaka Nwosu', phone: '+234 805 777 8888', email: 'amaka@example.com', role: 'Provider', active: true },
-  { name: 'Baba Tunde', phone: '+234 806 999 0000', email: 'babatunde@example.com', role: 'Provider', active: true },
-  { name: 'Segun Alabi', phone: '+234 807 111 3333', email: 'segun@example.com', role: 'Provider', active: true },
-  { name: 'Ngozi Chukwu', phone: '+234 808 222 4444', email: 'ngozi@example.com', role: 'Provider', active: true },
-  { name: 'Tobi Adeyemi', phone: '+234 809 333 5555', email: 'tobi@example.com', role: 'Customer', active: true },
-];
+  // Form states
+  const [name, setName] = useState('');
+  const [price, setPrice] = useState('');
+  const [category, setCategory] = useState('Mechanics');
+  const [type, setType] = useState<'Buy' | 'Book'>('Book');
 
-export default function AdminDashboard() {
-  const [users, setUsers] = useState<PlatformUser[]>(initialUsers);
+  // Fetch user's existing listings when page loads
+  useEffect(() => {
+    fetchMyListings();
+  }, []);
 
-  function toggleUser(index: number) {
-    setUsers((prev) => prev.map((u, i) => (i === index ? { ...u, active: !u.active } : u)));
+  async function fetchMyListings() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data } = await supabase
+      .from('products')
+      .select('*')
+      .eq('seller_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (data) setMyListings(data);
   }
 
-  const activeCount = users.filter((u) => u.active).length;
+  async function handlePublish(e: FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setMessage('');
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setMessage('Please sign in first.');
+      setLoading(false);
+      return;
+    }
+
+    const { error } = await supabase.from('products').insert([
+      {
+        seller_id: user.id,
+        name: name,
+        price: parseFloat(price),
+        category: category,
+        type: type,
+        location: 'Lagos, Nigeria', 
+      },
+    ]);
+
+    if (error) {
+      setMessage('Error: ' + error.message);
+    } else {
+      setMessage('✅ Service published successfully!');
+      setName(''); setPrice('');
+      setShowForm(false); 
+      fetchMyListings(); 
+    }
+    setLoading(false);
+  }
 
   return (
-    <PageShell>
-      <Head>
-        <title>Admin Dashboard — TPMarket</title>
-      </Head>
-      <LandingNavbar />
+    <div className="min-h-screen bg-[#0F172A] text-white pb-24">
+      <Head><title>My Dashboard — TPMarket</title></Head>
 
-      <div className="max-w-5xl mx-auto px-6 py-10 relative">
-        <Link href="/" className="flex items-center gap-1 text-sm font-bold text-[#0F172A]/70 hover:text-[#0F172A] transition-colors mb-6">
-          <ArrowLeft size={16} /> Back Home
-        </Link>
-
-        <h1 className="text-3xl md:text-4xl font-black text-[#0F172A] mb-2">Admin Dashboard 🛡️</h1>
-        <p className="text-[#64748B] font-medium mb-8">Platform overview and user management.</p>
-
-        {/* STATS */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-          <div className="bg-darkcard rounded-3xl p-5 border border-white/10 shadow-[0_0_40px_rgba(204,255,0,0.15)]">
-            <div className="w-10 h-10 rounded-xl bg-lemon/10 text-lemon flex items-center justify-center mb-3">
-              <Wallet size={18} />
-            </div>
-            <p className="text-slate text-xs mb-1">Total Income</p>
-            <p className="text-white font-black text-xl">₦4,820,000</p>
-          </div>
-          <div className="bg-darkcard rounded-3xl p-5 border border-white/10 shadow-[0_0_40px_rgba(139,92,246,0.2)]">
-            <div className="w-10 h-10 rounded-xl bg-purple/10 text-purple flex items-center justify-center mb-3">
-              <Percent size={18} />
-            </div>
-            <p className="text-slate text-xs mb-1">Total Commission</p>
-            <p className="text-white font-black text-xl">₦482,000</p>
-          </div>
-          <div className="bg-darkcard rounded-3xl p-5 border border-white/10 shadow-[0_0_40px_rgba(250,204,21,0.2)]">
-            <div className="w-10 h-10 rounded-xl bg-yellow/10 text-yellow flex items-center justify-center mb-3">
-              <Gift size={18} />
-            </div>
-            <p className="text-slate text-xs mb-1">Total Referral Bonus</p>
-            <p className="text-white font-black text-xl">₦96,400</p>
-          </div>
-          <div className="bg-darkcard rounded-3xl p-5 border border-white/10 shadow-[0_0_40px_rgba(135,206,235,0.2)]">
-            <div className="w-10 h-10 rounded-xl bg-sky/10 text-sky flex items-center justify-center mb-3">
-              <Users size={18} />
-            </div>
-            <p className="text-slate text-xs mb-1">Active Users</p>
-            <p className="text-white font-black text-xl">1,240</p>
-          </div>
-        </div>
-
-        {/* USER MANAGEMENT */}
-        <div className="bg-darkcard rounded-3xl border border-white/10 shadow-[0_20px_60px_rgba(15,23,42,0.35)] p-5 sm:p-6 mb-6">
-          <h2 className="text-white font-black text-lg mb-1">User Management 👥</h2>
-          <p className="text-slate text-xs mb-5">
-            {activeCount} of {users.length} shown users are active. Toggle off to ban a user.
-          </p>
-
-          <div className="overflow-x-auto -mx-2 px-2">
-            <table className="w-full min-w-[640px] border-collapse">
-              <thead>
-                <tr className="text-left text-slate text-[11px] font-bold uppercase tracking-wide">
-                  <th className="pb-3 pr-4">Name</th>
-                  <th className="pb-3 pr-4">Phone</th>
-                  <th className="pb-3 pr-4">Email</th>
-                  <th className="pb-3 pr-4">Status</th>
-                  <th className="pb-3">Access</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u, i) => (
-                  <tr key={u.email} className="border-t border-white/10">
-                    <td className="py-3 pr-4">
-                      <p className="text-white font-bold text-sm">{u.name}</p>
-                      <p className="text-slate text-[10px] font-semibold">{u.role}</p>
-                    </td>
-                    <td className="py-3 pr-4 text-slate text-xs">{u.phone}</td>
-                    <td className="py-3 pr-4 text-slate text-xs">{u.email}</td>
-                    <td className="py-3 pr-4">
-                      <span
-                        className={`text-[10px] font-black px-3 py-1.5 rounded-full ${
-                          u.active ? 'bg-lemon/10 text-lemon' : 'bg-white/10 text-slate'
-                        }`}
-                      >
-                        {u.active ? 'Active' : 'Banned/Pending'}
-                      </span>
-                    </td>
-                    <td className="py-3">
-                      <button
-                        type="button"
-                        onClick={() => toggleUser(i)}
-                        aria-label={`Toggle access for ${u.name}`}
-                        className={`relative w-11 h-6 rounded-full shrink-0 transition-colors ${u.active ? 'bg-lemon' : 'bg-white/15'}`}
-                      >
-                        <span
-                          className={`absolute top-1 w-4 h-4 rounded-full bg-[#0F172A] transition-all ${u.active ? 'left-6' : 'left-1'}`}
-                        />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <Link
-          href="/admin/financials"
-          className="flex items-center justify-center gap-2 w-full bg-lemon text-[#0F172A] font-black py-4 rounded-full hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(204,255,0,0.6)] transition-all"
-        >
-          <BarChart3 size={18} /> View Financials
-        </Link>
+      {/* HEADER */}
+      <div className="bg-gradient-to-r from-[#1E293B] to-[#0F172A] p-6 border-b border-white/10">
+        <h1 className="text-2xl font-black text-white">My Dashboard</h1>
+        <p className="text-slate-400 text-sm">Manage your services and track your growth.</p>
       </div>
-    </PageShell>
+
+      <div className="max-w-4xl mx-auto p-6 space-y-6">
+        
+        {/* STATS CARDS */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-[#1E293B] p-4 rounded-2xl border border-white/10">
+            <Package className="text-[#ccff00] mb-2" size={24} />
+            <p className="text-2xl font-black">{myListings.length}</p>
+            <p className="text-xs text-slate-400">Active Services</p>
+          </div>
+          <div className="bg-[#1E293B] p-4 rounded-2xl border border-white/10">
+            <TrendingUp className="text-[#ccff00] mb-2" size={24} />
+            <p className="text-2xl font-black">₦0</p>
+            <p className="text-xs text-slate-400">Total Earnings</p>
+          </div>
+        </div>
+
+        {/* PUBLISH BUTTON & FORM */}
+        {!showForm ? (
+          <button 
+            onClick={() => setShowForm(true)}
+            className="w-full flex items-center justify-center gap-2 bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-2xl hover:scale-[1.02] transition-all shadow-lg shadow-[#ccff00]/20"
+          >
+            <Plus size={20} /> Publish New Service
+          </button>
+        ) : (
+          <div className="bg-[#1E293B] p-6 rounded-2xl border border-[#ccff00]/30 shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-white">Add New Service</h2>
+              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-white">Cancel</button>
+            </div>
+
+            {message && (
+              <div className={`p-3 rounded-xl mb-4 text-center font-bold text-sm ${message.includes('✅') ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                {message}
+              </div>
+            )}
+
+            <form onSubmit={handlePublish} className="space-y-4">
+              <input type="text" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Service Name (e.g., AC Repair)" className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
+              <input type="number" required value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Price in Naira (e.g., 5000)" className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
+              
+              <div className="grid grid-cols-2 gap-4">
+                <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none">
+                  <option>Mechanics</option><option>Tailors & Fashion</option><option>Electricians</option><option>Home Services</option><option>Car Spare Parts</option>
+                </select>
+                <select value={type} onChange={(e) => setType(e.target.value as 'Buy' | 'Book')} className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none">
+                  <option value="Book">Book a Service</option><option value="Buy">Sell a Product</option>
+                </select>
+              </div>
+
+              <button type="submit" disabled={loading} className="w-full bg-[#ccff00] text-[#0F172A] font-black py-3 rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50">
+                {loading ? 'Publishing...' : 'Publish to Marketplace'}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* MY ACTIVE LISTINGS */}
+        <div>
+          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <CheckCircle size={18} className="text-[#ccff00]" /> My Active Services
+          </h2>
+          
+          {myListings.length === 0 ? (
+            <p className="text-slate-400 text-center py-8 bg-[#1E293B] rounded-2xl border border-white/5">
+              You haven't published any services yet. Click the button above to start!
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {myListings.map((item) => (
+                <div key={item.id} className="bg-[#1E293B] p-4 rounded-2xl border border-white/10 flex justify-between items-center">
+                  <div>
+                    <h3 className="font-bold text-white">{item.name}</h3>
+                    <p className="text-xs text-slate-400">{item.category} • {item.type}</p>
+                  </div>
+                  <div className="text-right flex flex-col items-end gap-2">
+                    <p className="font-black text-[#ccff00]">₦{item.price?.toLocaleString()}</p>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-1 rounded-full font-bold">Active</span>
+                      {/* EDIT BUTTON LINKING TO THE PUBLISH PAGE */}
+                      <Link href={`/provider/publish?id=${item.id}`} className="text-[#ccff00] text-xs font-bold flex items-center gap-1 hover:underline">
+                        <Edit3 size={12} /> Edit
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* BOTTOM NAVIGATION */}
+      <BottomNav />
+    </div>
   );
 }
