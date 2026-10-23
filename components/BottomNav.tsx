@@ -1,28 +1,20 @@
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { ShoppingBag, ShoppingCart, Bell, Heart, User } from 'lucide-react';
-import { getSession } from '../lib/auth';
 
-// Fixed 5-tab bottom navigation for the main app pages (Marketplace, Cart, Notifications, Wishlist, Account).
 export default function BottomNav() {
   const router = useRouter();
-  const [accountHref, setAccountHref] = useState('/dashboard/customer');
 
-  useEffect(() => {
-    const session = getSession();
-    setAccountHref(session?.role === 'provider' ? '/dashboard/provider' : '/dashboard/customer');
-  }, []);
-
-  // Demo-only: mock unread count for the Notifications badge.
-  const unreadCount = 3;
+  // HARDCODED to the exact link that works at the top of your app.
+  // No complex session checks. It just goes straight to the provider dashboard.
+  const accountLink = '/provider/dashboard'; 
 
   const items = [
     { label: 'Shop', href: '/marketplace', icon: ShoppingBag },
     { label: 'Cart', href: '/cart', icon: ShoppingCart },
-    { label: 'Notifications', href: '/notifications', icon: Bell, badge: unreadCount },
+    { label: 'Notifications', href: '/notifications', icon: Bell, badge: 3 },
     { label: 'Wishlist', href: '/wishlist', icon: Heart },
-    { label: 'Account', href: accountHref, icon: User },
+    { label: 'Account', href: accountLink, icon: User },
   ];
 
   return (

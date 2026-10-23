@@ -26,9 +26,9 @@ export default function Marketplace() {
     setLoading(false);
   }
 
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    p.category.toLowerCase().includes(searchTerm.toLowerCase())
+    const filteredProducts = products.filter(p =>
+    (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (p.category || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (

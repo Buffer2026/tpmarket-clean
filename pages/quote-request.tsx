@@ -4,11 +4,9 @@ import BottomNav from '../components/BottomNav';
 
 export default function QuoteRequest() {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [category, setCategory] = useState('');
-  const [customCategory, setCustomCategory] = useState('');
   const [description, setDescription] = useState('');
   const [images, setImages] = useState<File[]>([]);
-  const [imageUrls, setImageUrls] = useState<string[]>([]); // <-- ADDED THIS MISSING LINE
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -35,10 +33,9 @@ export default function QuoteRequest() {
       return;
     }
 
-    const finalCategory = category === 'Other' ? customCategory : category;
     let finalImages: string[] = [];
     
-    // Upload images
+    // Upload images to Supabase Storage
     for (const file of images) {
       const { data } = await supabase.storage.from('quotes').upload(`${Date.now()}_${file.name}`, file);
       if (data) {
@@ -47,21 +44,18 @@ export default function QuoteRequest() {
       }
     }
 
+    // Insert into database (Removed category fields since they are no longer needed)
     const { error } = await supabase.from('quote_requests').insert([{ 
       customer_id: user.id, 
-      description, 
-      category: finalCategory, 
-      custom_category: category === 'Other' ? customCategory : null, 
+      description: description.trim(),
       images: finalImages 
     }]);
     
     if (error) {
       alert('Error: ' + error.message);
     } else {
-      alert('✅ Quote Request Sent! Providers will contact you.');
+      alert('✅ Quote Request Sent! The provider will contact you shortly.');
       // Reset form
-      setCategory('');
-      setCustomCategory('');
       setDescription('');
       setImages([]);
       setImageUrls([]);
@@ -72,51 +66,40 @@ export default function QuoteRequest() {
   return (
     <div className="min-h-screen bg-[#0F172A] p-4 pb-24 text-white">
       <h1 className="text-2xl font-black mb-2">Request a Quote</h1>
-      <p className="text-gray-400 text-sm mb-6">Tell us what you need.</p>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <select 
-          value={category} 
-          onChange={e => setCategory(e.target.value)} 
-          className="w-full bg-[#1E293B] border border-white/10 rounded-xl py-3 px-4 text-white"
-        >
-          <option value="">Select Category</option>
-          <option>Mechanics</option>
-          <option>Tailors</option>
-          <option>Builders</option>
-          <option>Other</option>
-        </select>
+      <p className="text-gray-400 text-sm mb-6">Describe your needs and attach photos so the provider can give you an accurate estimate.</p>
+      
+      <form onSubmit={handleSubmit} className="space-y-5">
         
-        {category === 'Other' && (
-          <input 
+        {/* Description Field */}
+        <div>
+          <label className="text-xs font-bold text-gray-400 mb-1.5 block">What do you need done?</label>
+          <textarea 
             required 
-            value={customCategory} 
-            onChange={e => setCustomCategory(e.target.value)} 
-            placeholder="Type your specific need..." 
-            className="w-full bg-[#1E293B] border border-[#ccff00] rounded-xl py-3 px-4 text-white placeholder:text-gray-500" 
+            value={description} 
+            onChange={e => setDescription(e.target.value)} 
+            placeholder="e.g., I need my 2015 Toyota Camry brake pads replaced and AC regassed..." 
+            className="w-full bg-[#1E293B] border border-white/10 rounded-xl py-3 px-4 h-32 text-white placeholder:text-gray-500 focus:border-[#ccff00] focus:outline-none" 
           />
-        )}
+        </div>
         
-        <textarea 
-          required 
-          value={description} 
-          onChange={e => setDescription(e.target.value)} 
-          placeholder="Describe exactly what you want..." 
-          className="w-full bg-[#1E293B] border border-white/10 rounded-xl py-3 px-4 h-32 text-white placeholder:text-gray-500" 
-        />
-        
-        <div 
-          onClick={() => fileInputRef.current?.click()} 
-          className="border-2 border-dashed border-white/20 rounded-2xl p-6 text-center cursor-pointer hover:border-[#ccff00]/50 transition-all"
-        >
-          <p className="font-bold text-white">📷 Upload Sample Images ({images.length}/8)</p>
-          <input 
-            ref={fileInputRef} 
-            type="file" 
-            multiple 
-            accept="image/*" 
-            onChange={handleImageSelect} 
-            className="hidden" 
-          />
+        {/* Image Upload Field */}
+        <div>
+          <label className="text-xs font-bold text-gray-400 mb-1.5 block">Attach Sample Images (Optional, Max 8)</label>
+          <div 
+            onClick={() => fileInputRef.current?.click()} 
+            className="border-2 border-dashed border-white/20 rounded-2xl p-6 text-center cursor-pointer hover:border-[#ccff00]/50 hover:bg-white/5 transition-all"
+          >
+            <p className="font-bold text-white text-sm">📷 Tap to Upload Photos</p>
+            <p className="text-xs text-gray-500 mt-1">{images.length > 0 ? `${images.length}/8 images selected` : 'JPG, PNG up to 5MB each'}</p>
+            <input 
+              ref={fileInputRef} 
+              type="file" 
+              multiple 
+              accept="image/*" 
+              onChange={handleImageSelect} 
+              className="hidden" 
+            />
+          </div>
         </div>
 
         {/* Image Previews */}
@@ -130,11 +113,12 @@ export default function QuoteRequest() {
           </div>
         )}
 
+        {/* Submit Button */}
         <button 
           disabled={loading} 
-          className="w-full bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50"
+          className="w-full bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-4"
         >
-          {loading ? 'Sending...' : 'Submit Request'}
+          {loading ? 'Sending Request...' : 'Submit Quote Request'}
         </button>
       </form>
       <BottomNav />
