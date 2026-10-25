@@ -105,7 +105,7 @@ export default function ProductDetailPage() {
       const existingCart = JSON.parse(localStorage.getItem('tpmarket_cart') || '[]');
       
       // Check if item already exists in cart to increase quantity instead of duplicating
-      const existingIndex = existingCart.findIndex((item: any) => item.productId === product.id);
+      const existingIndex = existingCart.findIndex((item) => item.productId === product.id);
       
       if (existingIndex > -1) {
         existingCart[existingIndex].quantity += 1;
