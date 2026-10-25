@@ -46,7 +46,7 @@ export default function PublishPage() {
   }, [id]);
 
   const handleImageSelect = (e: any) => {
-    const files = Array.from(e.target.files);
+       const files = Array.from(e.target.files || []) as File[];
     if (files.length + existingImages.length > 8) return alert('Max 8 images allowed');
     setImages(files);
   };
