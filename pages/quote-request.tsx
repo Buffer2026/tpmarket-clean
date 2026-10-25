@@ -1,13 +1,41 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabase';
 import BottomNav from '../components/BottomNav';
 
 export default function QuoteRequest() {
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [description, setDescription] = useState('');
   const [images, setImages] = useState<File[]>([]);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  // Check authentication on page load
+  useEffect(() => {
+    async function checkUser() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        // Not logged in, redirect to sign in
+        router.push('/signin');
+      } else {
+        setUser(user);
+      }
+      setCheckingAuth(false);
+    }
+    checkUser();
+  }, []);
+
+  // Show loading while checking auth
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-[#0F172A] flex items-center justify-center text-white">
+        <p>Loading...</p>
+      </div>
+    );
+  }
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -24,14 +52,14 @@ export default function QuoteRequest() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     
-    const { data: { user } } = await supabase.auth.getUser();
+    // Double-check user is logged in
     if (!user) {
       alert('Please sign in first');
-      setLoading(false);
       return;
     }
+    
+    setLoading(true);
 
     let finalImages: string[] = [];
     
@@ -44,7 +72,7 @@ export default function QuoteRequest() {
       }
     }
 
-    // Insert into database (Removed category fields since they are no longer needed)
+    // Insert into database
     const { error } = await supabase.from('quote_requests').insert([{ 
       customer_id: user.id, 
       description: description.trim(),
@@ -89,7 +117,7 @@ export default function QuoteRequest() {
             onClick={() => fileInputRef.current?.click()} 
             className="border-2 border-dashed border-white/20 rounded-2xl p-6 text-center cursor-pointer hover:border-[#ccff00]/50 hover:bg-white/5 transition-all"
           >
-            <p className="font-bold text-white text-sm">📷 Tap to Upload Photos</p>
+            <p className="font-bold text-white text-sm"> Tap to Upload Photos</p>
             <p className="text-xs text-gray-500 mt-1">{images.length > 0 ? `${images.length}/8 images selected` : 'JPG, PNG up to 5MB each'}</p>
             <input 
               ref={fileInputRef} 
