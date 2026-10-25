@@ -12,7 +12,7 @@ export default function ProductDetailPage() {
   const router = useRouter();
   const { id } = router.query;
   
-  const [product, setProduct] = useState(null);
+  const [product, setProduct] = useState<any>(null);
   const [userCoins, setUserCoins] = useState(0);
   const [loading, setLoading] = useState(true);
   
@@ -21,7 +21,7 @@ export default function ProductDetailPage() {
   const [showNegotiate, setShowNegotiate] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [offerPrice, setOfferPrice] = useState('');
-  const [selectedInstallment, setSelectedInstallment] = useState(null);
+  const [selectedInstallment, setSelectedInstallment] = useState<number | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -85,18 +85,41 @@ export default function ProductDetailPage() {
     }
   };
 
+  // 🛒 IMPROVED, BULLETPROOF ADD TO CART FUNCTION
   const addToCart = () => {
+    if (!product || !product.id) {
+      alert('Product information is missing.');
+      return;
+    }
+
     const cartItem = {
       productId: product.id,
       name: product.name,
       price: product.price,
-      image: product.images[0],
+      image: product.images && product.images.length > 0 ? product.images[0] : 'https://images.unsplash.com/photo-1581092921461-eab62e97a782?w=800',
       quantity: 1
     };
-    const existingCart = JSON.parse(localStorage.getItem('tpmarket_cart') || '[]');
-    existingCart.push(cartItem);
-    localStorage.setItem('tpmarket_cart', JSON.stringify(existingCart));
-    alert('✅ Added to cart!');
+
+    try {
+      // Get existing cart or empty array
+      const existingCart = JSON.parse(localStorage.getItem('tpmarket_cart') || '[]');
+      
+      // Check if item already exists in cart to increase quantity instead of duplicating
+      const existingIndex = existingCart.findIndex((item: any) => item.productId === product.id);
+      
+      if (existingIndex > -1) {
+        existingCart[existingIndex].quantity += 1;
+      } else {
+        existingCart.push(cartItem);
+      }
+      
+      // Save back to localStorage
+      localStorage.setItem('tpmarket_cart', JSON.stringify(existingCart));
+      alert('✅ Added to cart successfully!');
+    } catch (error) {
+      console.error('Cart error:', error);
+      alert('Could not add to cart. Please try again.');
+    }
   };
 
   const submitNegotiation = async () => {
@@ -138,7 +161,7 @@ export default function ProductDetailPage() {
           </button>
         </div>
         <div className="flex gap-2 p-3 overflow-x-auto">
-          {product.images.slice(0, 4).map((img, idx) => (
+          {product.images.slice(0, 4).map((img: string, idx: number) => (
             <button 
               key={idx} 
               onClick={() => setCurrentImage(idx)} 
@@ -187,7 +210,6 @@ export default function ProductDetailPage() {
           <div className="flex items-center gap-4">
             <img src={product.seller_logo} alt="Seller" className="w-14 h-14 rounded-full border-2 border-[#ccff00]" />
             <div>
-              {/* ✨ CLICKABLE SELLER NAME LINKED TO PROFILE  */}
               <Link href={`/provider/${product.seller_id}`} className="hover:text-[#ccff00] transition-colors cursor-pointer block">
                 <h3 className="font-bold text-white text-lg">{product.seller_name}</h3>
               </Link>
@@ -205,7 +227,6 @@ export default function ProductDetailPage() {
             </div>
           </div>
 
-          {/* REQUEST A QUOTE BUTTON */}
           <Link href="/quote-request" className="w-full bg-[#1E293B] border border-[#ccff00] text-[#ccff00] font-bold py-3.5 rounded-xl hover:bg-[#ccff00]/10 transition-all flex items-center justify-center gap-2 mt-2">
             📋 Request a Custom Quote
           </Link>
@@ -214,13 +235,13 @@ export default function ProductDetailPage() {
 
       {/* 5. STICKY ACTION BUTTONS */}
       <div className="fixed bottom-16 left-0 right-0 bg-[#0F172A] border-t border-white/10 p-4 flex gap-3 z-40 max-w-4xl mx-auto">
-        <button onClick={addToCart} className="flex-1 bg-[#1E293B] border border-white/10 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-white/10 transition-all">
+        <button onClick={addToCart} className="flex-1 bg-[#1E293B] border border-white/10 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-white/10 transition-all active:scale-95">
           <ShoppingCart size={18} /> Cart
         </button>
-        <button onClick={() => setShowNegotiate(true)} className="flex-1 bg-[#1E293B] border border-white/10 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-white/10 transition-all">
+        <button onClick={() => setShowNegotiate(true)} className="flex-1 bg-[#1E293B] border border-white/10 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-white/10 transition-all active:scale-95">
           <MessageCircle size={18} /> Negotiate
         </button>
-        <button onClick={() => setShowPaymentModal(true)} className="flex-[1.5] bg-[#ccff00] text-[#0F172A] font-black py-3.5 rounded-xl flex items-center justify-center gap-2 hover:scale-[1.02] transition-all shadow-lg shadow-[#ccff00]/20">
+        <button onClick={() => setShowPaymentModal(true)} className="flex-[1.5] bg-[#ccff00] text-[#0F172A] font-black py-3.5 rounded-xl flex items-center justify-center gap-2 hover:scale-[1.02] transition-all shadow-lg shadow-[#ccff00]/20 active:scale-95">
           <CreditCard size={18} /> Buy Now
         </button>
       </div>
