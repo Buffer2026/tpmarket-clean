@@ -12,16 +12,15 @@ export default function ProductDetailPage() {
   const router = useRouter();
   const { id } = router.query;
   
-  const [product, setProduct] = useState<any>(null);
+  const [product, setProduct] = useState(null);
   const [userCoins, setUserCoins] = useState(0);
   const [loading, setLoading] = useState(true);
   
-  // UI States
   const [currentImage, setCurrentImage] = useState(0);
   const [showNegotiate, setShowNegotiate] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [offerPrice, setOfferPrice] = useState('');
-  const [selectedInstallment, setSelectedInstallment] = useState<number | null>(null);
+  const [selectedInstallment, setSelectedInstallment] = useState(null);
 
   useEffect(() => {
     if (id) {
@@ -30,7 +29,6 @@ export default function ProductDetailPage() {
     }
   }, [id]);
 
-  // Auto-slide gallery every 4 seconds
   useEffect(() => {
     if (product && product.images && product.images.length > 1) {
       const slideInterval = setInterval(() => {
@@ -85,7 +83,6 @@ export default function ProductDetailPage() {
     }
   };
 
-  // 🛒 IMPROVED, BULLETPROOF ADD TO CART FUNCTION
   const addToCart = () => {
     if (!product || !product.id) {
       alert('Product information is missing.');
@@ -101,10 +98,7 @@ export default function ProductDetailPage() {
     };
 
     try {
-      // Get existing cart or empty array
       const existingCart = JSON.parse(localStorage.getItem('tpmarket_cart') || '[]');
-      
-      // Check if item already exists in cart to increase quantity instead of duplicating
       const existingIndex = existingCart.findIndex((item) => item.productId === product.id);
       
       if (existingIndex > -1) {
@@ -113,7 +107,6 @@ export default function ProductDetailPage() {
         existingCart.push(cartItem);
       }
       
-      // Save back to localStorage
       localStorage.setItem('tpmarket_cart', JSON.stringify(existingCart));
       alert('✅ Added to cart successfully!');
     } catch (error) {
@@ -151,8 +144,6 @@ export default function ProductDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#0F172A] text-white pb-24">
-      
-      {/* 1. IMAGE GALLERY */}
       <div className="relative bg-[#1E293B]">
         <div className="relative h-80 w-full overflow-hidden">
           <img src={product.images[currentImage]} alt={product.name} className="w-full h-full object-cover transition-all duration-500" />
@@ -161,7 +152,7 @@ export default function ProductDetailPage() {
           </button>
         </div>
         <div className="flex gap-2 p-3 overflow-x-auto">
-          {product.images.slice(0, 4).map((img: string, idx: number) => (
+          {product.images.slice(0, 4).map((img, idx) => (
             <button 
               key={idx} 
               onClick={() => setCurrentImage(idx)} 
@@ -174,8 +165,6 @@ export default function ProductDetailPage() {
       </div>
 
       <div className="p-5 space-y-6 max-w-4xl mx-auto">
-        
-        {/* 2. PRODUCT INFO */}
         <div>
           <h1 className="text-2xl md:text-3xl font-black text-white mb-2">{product.name}</h1>
           <div className="flex items-center gap-2 mb-3">
@@ -189,7 +178,6 @@ export default function ProductDetailPage() {
           </div>
         </div>
 
-        {/* 3. DESCRIPTION & WARNING */}
         <div className="bg-[#1E293B] p-5 rounded-2xl border border-white/10 space-y-4">
           <h2 className="text-xl font-bold text-white">Description</h2>
           <p className="text-slate-300 text-sm leading-relaxed">{product.description || 'No description provided.'}</p>
@@ -205,7 +193,6 @@ export default function ProductDetailPage() {
           </div>
         </div>
 
-        {/* 4. PROVIDER DETAILS */}
         <div className="bg-[#1E293B] p-5 rounded-2xl border border-white/10 space-y-4">
           <div className="flex items-center gap-4">
             <img src={product.seller_logo} alt="Seller" className="w-14 h-14 rounded-full border-2 border-[#ccff00]" />
@@ -233,7 +220,6 @@ export default function ProductDetailPage() {
         </div>
       </div>
 
-      {/* 5. STICKY ACTION BUTTONS */}
       <div className="fixed bottom-16 left-0 right-0 bg-[#0F172A] border-t border-white/10 p-4 flex gap-3 z-40 max-w-4xl mx-auto">
         <button onClick={addToCart} className="flex-1 bg-[#1E293B] border border-white/10 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-white/10 transition-all active:scale-95">
           <ShoppingCart size={18} /> Cart
@@ -248,7 +234,6 @@ export default function ProductDetailPage() {
 
       <BottomNav />
 
-      {/* 6. PAYMENT MODAL */}
       {showPaymentModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
           <div className="bg-[#1E293B] w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 max-h-[90vh] overflow-y-auto border border-white/10">
@@ -301,7 +286,6 @@ export default function ProductDetailPage() {
         </div>
       )}
 
-      {/* 7. NEGOTIATION MODAL */}
       {showNegotiate && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#1E293B] w-full max-w-sm rounded-3xl p-6 border border-white/10">
