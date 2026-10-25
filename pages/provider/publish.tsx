@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '../../lib/supabase';
 import BottomNav from '../../components/BottomNav';
 
 // SEPARATE LISTS
