@@ -18,8 +18,10 @@ export default function ProductDetailPage() {
   
   const [currentImage, setCurrentImage] = useState(0);
   const [showNegotiate, setShowNegotiate] = useState(false);
+  const [showQuote, setShowQuote] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [offerPrice, setOfferPrice] = useState('');
+  const [quoteMessage, setQuoteMessage] = useState('');
   const [selectedInstallment, setSelectedInstallment] = useState(null);
 
   useEffect(() => {
@@ -115,25 +117,57 @@ export default function ProductDetailPage() {
     }
   };
 
+  // FIXED: Save negotiation to quote_requests table with seller_id
   const submitNegotiation = async () => {
     if (!offerPrice) return alert('Please enter a price');
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return alert('Please log in to negotiate');
 
-      await supabase.from('negotiations').insert({
+      const { error } = await supabase.from('quote_requests').insert({
         product_id: product.id,
-        buyer_id: user.id,
-        seller_id: product.seller_id,
-        offered_price: parseFloat(offerPrice),
-        original_price: product.price,
+        customer_id: user.id,
+        seller_id: product.seller_id, // This is the key!
+        description: `Negotiation Offer: ₦${parseFloat(offerPrice).toLocaleString()} (Original: ₦${product.price.toLocaleString()})`,
+        request_type: 'negotiate',
         status: 'pending'
       });
+
+      if (error) throw error;
+
       setShowNegotiate(false);
       setOfferPrice('');
-      alert('✅ Offer sent to seller!');
+      alert('✅ Offer sent to seller! They will see it in their dashboard.');
     } catch (error) {
-      alert('Error sending offer');
+      console.error('Negotiation error:', error);
+      alert('Error sending offer. Please try again.');
+    }
+  };
+
+  // NEW: Handle quote request
+  const submitQuoteRequest = async () => {
+    if (!quoteMessage.trim()) return alert('Please enter your request details');
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return alert('Please log in to send a quote request');
+
+      const { error } = await supabase.from('quote_requests').insert({
+        product_id: product.id,
+        customer_id: user.id,
+        seller_id: product.seller_id, // This is the key!
+        description: quoteMessage,
+        request_type: 'quote',
+        status: 'pending'
+      });
+
+      if (error) throw error;
+
+      setShowQuote(false);
+      setQuoteMessage('');
+      alert('✅ Quote request sent! The provider will contact you soon.');
+    } catch (error) {
+      console.error('Quote error:', error);
+      alert('Error sending quote request. Please try again.');
     }
   };
 
@@ -183,7 +217,7 @@ export default function ProductDetailPage() {
           <p className="text-slate-300 text-sm leading-relaxed">{product.description || 'No description provided.'}</p>
           
           <div className="bg-red-500/10 border border-red-500/30 p-4 rounded-xl flex gap-3 items-start">
-            <span className="text-2xl">⚠️</span>
+            <span className="text-2xl">️</span>
             <div>
               <p className="text-red-400 text-xs font-black uppercase mb-1">Quality Assurance Notice</p>
               <p className="text-red-200/80 text-sm leading-relaxed">
@@ -214,9 +248,12 @@ export default function ProductDetailPage() {
             </div>
           </div>
 
-          <Link href="/quote-request" className="w-full bg-[#1E293B] border border-[#ccff00] text-[#ccff00] font-bold py-3.5 rounded-xl hover:bg-[#ccff00]/10 transition-all flex items-center justify-center gap-2 mt-2">
+          <button 
+            onClick={() => setShowQuote(true)}
+            className="w-full bg-[#1E293B] border border-[#ccff00] text-[#ccff00] font-bold py-3.5 rounded-xl hover:bg-[#ccff00]/10 transition-all flex items-center justify-center gap-2 mt-2"
+          >
             📋 Request a Custom Quote
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -247,7 +284,7 @@ export default function ProductDetailPage() {
               className="w-full bg-[#0F172A] border-2 border-[#ccff00] p-4 rounded-2xl mb-4 text-left flex justify-between items-center hover:bg-[#0F172A]/80 transition-all"
             >
               <div>
-                <p className="font-bold text-white text-lg">💵 Cash Payment</p>
+                <p className="font-bold text-white text-lg"> Cash Payment</p>
                 <p className="text-xs text-slate-400">Pay full amount now</p>
               </div>
               <p className="font-black text-[#ccff00]">₦{(product.price || 0).toLocaleString()}</p>
@@ -306,6 +343,32 @@ export default function ProductDetailPage() {
                 Send Offer
               </button>
               <button onClick={() => setShowNegotiate(false)} className="flex-1 bg-white/5 border border-white/10 text-white font-bold py-3.5 rounded-xl hover:bg-white/10 transition-all">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showQuote && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#1E293B] w-full max-w-sm rounded-3xl p-6 border border-white/10">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-black text-white">Request a Quote</h2>
+              <button onClick={() => setShowQuote(false)}><X className="text-slate-400 hover:text-white" /></button>
+            </div>
+            <p className="text-slate-400 text-sm mb-4">Send a custom request to {product.seller_name}:</p>
+            <textarea 
+              placeholder="Describe what you need (e.g., 'I need this installed in my home', 'Do you have 2 units available?', etc.)" 
+              value={quoteMessage}
+              onChange={(e) => setQuoteMessage(e.target.value)}
+              className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3.5 px-4 text-white mb-4 focus:border-[#ccff00] focus:outline-none h-32 resize-none"
+            />
+            <div className="flex gap-3">
+              <button onClick={submitQuoteRequest} className="flex-1 bg-[#ccff00] text-[#0F172A] font-black py-3.5 rounded-xl hover:scale-[1.02] transition-all">
+                Send Request
+              </button>
+              <button onClick={() => setShowQuote(false)} className="flex-1 bg-white/5 border border-white/10 text-white font-bold py-3.5 rounded-xl hover:bg-white/10 transition-all">
                 Cancel
               </button>
             </div>
