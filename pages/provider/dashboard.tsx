@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { supabase } from '../../lib/supabase';
 import BottomNav from '../../components/BottomNav';
-import { Plus, Package, TrendingUp, CheckCircle, Upload, X, Image as ImageIcon, User } from 'lucide-react';
+import { Plus, Package, TrendingUp, CheckCircle, Upload, X, Image as ImageIcon, User, MessageSquare } from 'lucide-react';
 
 export default function ProviderDashboard() {
   const router = useRouter();
@@ -11,6 +11,7 @@ export default function ProviderDashboard() {
   const [message, setMessage] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [myListings, setMyListings] = useState<any[]>([]);
+  const [requests, setRequests] = useState<any[]>([]); // NEW: State for incoming requests
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [name, setName] = useState('');
@@ -31,6 +32,7 @@ export default function ProviderDashboard() {
 
   useEffect(() => {
     fetchMyListings();
+    fetchRequests(); // NEW: Fetch requests on load
     fetchProfile();
   }, []);
 
@@ -39,6 +41,18 @@ export default function ProviderDashboard() {
     if (!user) return;
     const { data } = await supabase.from('products').select('*').eq('seller_id', user.id).order('created_at', { ascending: false });
     if (data) setMyListings(data);
+  }
+
+  // NEW: Fetch incoming requests for this provider
+  async function fetchRequests() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data } = await supabase
+      .from('requests')
+      .select('*')
+      .eq('seller_id', user.id)
+      .order('created_at', { ascending: false });
+    if (data) setRequests(data);
   }
 
   async function fetchProfile() {
@@ -75,12 +89,10 @@ export default function ProviderDashboard() {
     if (!user) { setMessage('Please sign in first.'); setLoading(false); return; }
 
     try {
-      // 1. Fetch your Profile Picture and Name to save with the product
       const { data: profileData } = await supabase.from('profiles').select('avatar_url, full_name').eq('id', user.id).single();
       const sellerLogo = profileData?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=ccff00&color=0F172A`;
       const sellerName = profileData?.full_name || user.email;
 
-      // 2. Upload Product Images
       const imageUrls: string[] = [];
       for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
@@ -91,7 +103,6 @@ export default function ProviderDashboard() {
         imageUrls.push(publicUrl);
       }
 
-      // 3. Save Product to Database (NOW INCLUDING SELLER LOGO & NAME)
       const { error } = await supabase.from('products').insert([
         {
           seller_id: user.id,
@@ -149,10 +160,11 @@ export default function ProviderDashboard() {
 
       <div className="bg-gradient-to-r from-[#1E293B] to-[#0F172A] p-6 border-b border-white/10">
         <h1 className="text-2xl font-black text-white">Provider Dashboard</h1>
-        <p className="text-slate-400 text-sm">Manage your services and track your growth.</p>
+        <p className="text-slate-400 text-sm">Manage your services, requests, and track your growth.</p>
       </div>
 
       <div className="max-w-4xl mx-auto p-6 space-y-6">
+        {/* PROFILE PHOTO */}
         <div className="bg-[#1E293B] p-6 rounded-2xl border border-white/10 flex flex-col items-center text-center">
           <label className="relative cursor-pointer group">
             <div className="w-24 h-24 rounded-full bg-[#0F172A] border-2 border-dashed border-[#ccff00] flex items-center justify-center overflow-hidden">
@@ -168,6 +180,7 @@ export default function ProviderDashboard() {
           {profileMessage && <p className="text-xs text-[#ccff00] font-bold">{profileMessage}</p>}
         </div>
 
+        {/* STATS */}
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-[#1E293B] p-4 rounded-2xl border border-white/10">
             <Package className="text-[#ccff00] mb-2" size={24} />
@@ -175,12 +188,13 @@ export default function ProviderDashboard() {
             <p className="text-xs text-slate-400">Active Services</p>
           </div>
           <div className="bg-[#1E293B] p-4 rounded-2xl border border-white/10">
-            <TrendingUp className="text-[#ccff00] mb-2" size={24} />
-            <p className="text-2xl font-black">₦0</p>
-            <p className="text-xs text-slate-400">Total Earnings</p>
+            <MessageSquare className="text-[#ccff00] mb-2" size={24} />
+            <p className="text-2xl font-black">{requests.filter(r => r.status === 'pending').length}</p>
+            <p className="text-xs text-slate-400">Pending Requests</p>
           </div>
         </div>
 
+        {/* PUBLISH FORM TOGGLE */}
         {!showForm ? (
           <button onClick={() => setShowForm(true)} className="w-full flex items-center justify-center gap-2 bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-2xl hover:scale-[1.02] transition-all shadow-lg shadow-[#ccff00]/20">
             <Plus size={20} /> Publish New Service
@@ -262,6 +276,49 @@ export default function ProviderDashboard() {
           </div>
         )}
 
+        {/* NEW: INCOMING REQUESTS SECTION */}
+        <div className="mt-8">
+          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <MessageSquare size={18} className="text-[#ccff00]" /> Incoming Requests & Negotiations
+          </h2>
+          
+          {requests.length === 0 ? (
+            <div className="bg-[#1E293B] p-6 rounded-2xl border border-white/10 text-center">
+              <p className="text-slate-400">No new requests yet. When a customer negotiates or asks for a quote, it will show up here!</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {requests.map((req: any) => (
+                <div key={req.id} className="bg-[#1E293B] p-4 rounded-2xl border border-white/10">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${req.request_type === 'negotiate' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}`}>
+                        {req.request_type === 'negotiate' ? '💰 Negotiation' : '📝 Quote Request'}
+                      </span>
+                      <span className="text-xs text-slate-400">{new Date(req.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${req.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'}`}>
+                      {req.status.toUpperCase()}
+                    </span>
+                  </div>
+                  <p className="text-white text-sm mb-3 bg-[#0F172A] p-3 rounded-lg border border-white/5 italic">
+                    "{req.message}"
+                  </p>
+                  <div className="flex gap-2">
+                    <button className="flex-1 bg-[#ccff00] text-[#0F172A] text-xs font-bold py-2.5 rounded-xl hover:scale-[1.02] transition-all">
+                      Accept / Reply
+                    </button>
+                    <button className="flex-1 bg-red-500/20 text-red-400 text-xs font-bold py-2.5 rounded-xl hover:bg-red-500/30 transition-all">
+                      Decline
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* MY ACTIVE SERVICES */}
         <div>
           <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><CheckCircle size={18} className="text-[#ccff00]" /> My Active Services</h2>
           {myListings.length === 0 ? (
