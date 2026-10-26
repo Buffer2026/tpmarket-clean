@@ -11,7 +11,7 @@ export default function ProviderDashboard() {
   const [message, setMessage] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [myListings, setMyListings] = useState<any[]>([]);
-  const [requests, setRequests] = useState<any[]>([]); // NEW: State for incoming requests
+  const [requests, setRequests] = useState<any[]>([]); 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [name, setName] = useState('');
@@ -32,7 +32,7 @@ export default function ProviderDashboard() {
 
   useEffect(() => {
     fetchMyListings();
-    fetchRequests(); // NEW: Fetch requests on load
+    fetchRequests(); 
     fetchProfile();
   }, []);
 
@@ -43,15 +43,16 @@ export default function ProviderDashboard() {
     if (data) setMyListings(data);
   }
 
-  // NEW: Fetch incoming requests for this provider
+  // TEMPORARY TEST: Fetch ALL requests to see if they exist (No ID filter)
   async function fetchRequests() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data } = await supabase
-      .from('requests')
+    const { data, error } = await supabase
+      .from('quote_requests') // Changed from 'requests' to 'quote_requests'
       .select('*')
-      .eq('seller_id', user.id)
       .order('created_at', { ascending: false });
+      
+    console.log("DEBUG - Requests found:", data); // Check your browser console (F12)
+    console.log("DEBUG - Error:", error);
+    
     if (data) setRequests(data);
   }
 
@@ -276,7 +277,7 @@ export default function ProviderDashboard() {
           </div>
         )}
 
-        {/* NEW: INCOMING REQUESTS SECTION */}
+        {/* INCOMING REQUESTS SECTION */}
         <div className="mt-8">
           <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
             <MessageSquare size={18} className="text-[#ccff00]" /> Incoming Requests & Negotiations
@@ -298,11 +299,12 @@ export default function ProviderDashboard() {
                       <span className="text-xs text-slate-400">{new Date(req.created_at).toLocaleDateString()}</span>
                     </div>
                     <span className={`text-xs font-bold px-2 py-1 rounded-full ${req.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'}`}>
-                      {req.status.toUpperCase()}
+                      {req.status?.toUpperCase() || 'PENDING'}
                     </span>
                   </div>
+                  {/* FIXED: Changed req.message to req.description to match database */}
                   <p className="text-white text-sm mb-3 bg-[#0F172A] p-3 rounded-lg border border-white/5 italic">
-                    "{req.message}"
+                    "{req.description}"
                   </p>
                   <div className="flex gap-2">
                     <button className="flex-1 bg-[#ccff00] text-[#0F172A] text-xs font-bold py-2.5 rounded-xl hover:scale-[1.02] transition-all">
