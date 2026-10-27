@@ -242,16 +242,31 @@ export default function UnifiedDashboard() {
                         <div key={req.id} className="bg-[#0F172A] p-4 rounded-lg border border-white/10">
                           <div className="flex justify-between items-start mb-2">
                             <div><p className="text-white font-bold text-sm">{req.customer_name || 'Customer'}</p><p className="text-slate-400 text-[10px]">📍 {req.customer_location}</p></div>
-                            <span className={`text-[10px] font-black px-2 py-1 rounded-full ${req.status === 'pending' ? 'bg-yellow-500 text-[#0F172A]' : 'bg-[#ccff00] text-[#0F172A]'}`}>{req.status?.toUpperCase()}</span>
+                            <span className={`text-[10px] font-black px-2 py-1 rounded-full ${req.status === 'pending' ? 'bg-yellow-500 text-[#0F172A]' : req.status === 'quoted' ? 'bg-[#ccff00] text-[#0F172A]' : 'bg-slate-500 text-white'}`}>{req.status?.toUpperCase()}</span>
                           </div>
                           <p className="text-slate-300 text-xs mb-3 italic border-l-2 border-[#ccff00] pl-3">"{req.description}"</p>
+                          
+                          {/* NEW: Display Sample Images for Provider */}
+                          {req.sample_images && req.sample_images.length > 0 && (
+                            <div className="mb-3">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Sample Images Provided:</p>
+                              <div className="grid grid-cols-3 gap-2">
+                                {req.sample_images.map((img: string, idx: number) => (
+                                  <a key={idx} href={img} target="_blank" rel="noopener noreferrer" className="relative aspect-square rounded-lg overflow-hidden border border-[#ccff00]/30 hover:border-[#ccff00] transition-all">
+                                    <img src={img} alt="Sample" className="w-full h-full object-cover" />
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
                           {req.status === 'pending' && (
                             <div className="flex gap-2">
                               <button onClick={() => handleProviderResponse(req.id, 'quoted')} className="flex-1 bg-[#ccff00] text-[#0F172A] text-xs font-black py-2 rounded-lg">Send Quote</button>
                               <button onClick={() => handleProviderResponse(req.id, 'declined')} className="flex-1 bg-red-500/20 text-red-400 text-xs font-bold py-2 rounded-lg">Decline</button>
                             </div>
                           )}
-                          {req.status === 'quoted' && <p className="text-center text-xs text-[#ccff00] font-bold bg-[#ccff00]/10 py-2 rounded-lg">✅ Quote Sent.</p>}
+                          {req.status === 'quoted' && <p className="text-center text-xs text-[#ccff00] font-bold bg-[#ccff00]/10 py-2 rounded-lg">✅ Quote Sent. Waiting for customer.</p>}
                         </div>
                       ))}
                     </div>
@@ -330,7 +345,7 @@ export default function UnifiedDashboard() {
           </div>
         )}
 
-        {/* SECTION 2: MY REQUESTS (FEATURE #1 RESTORED) */}
+        {/* SECTION 2: MY REQUESTS */}
         <SectionHeader id="requests" title="My Requests & Quotations" icon={MessageCircle} count={myRequests.filter(r => r.status === 'quoted').length} />
         {openSection === 'requests' && (
           <div className="bg-[#1E293B] rounded-lg p-5 border border-white/10 mb-4 space-y-4">
@@ -344,6 +359,21 @@ export default function UnifiedDashboard() {
                     <span className={`text-[10px] font-black px-2 py-1 rounded-full ${req.status === 'quoted' ? 'bg-[#ccff00] text-[#0F172A]' : req.status === 'negotiating' ? 'bg-purple-500 text-white' : 'bg-yellow-500 text-[#0F172A]'}`}>{req.status?.toUpperCase()}</span>
                   </div>
                   <p className="text-slate-300 text-xs mb-3 italic border-l-2 border-[#ccff00] pl-3">"{req.description}"</p>
+                  
+                  {/* NEW: Display Sample Images for Customer Review */}
+                  {req.sample_images && req.sample_images.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Your Sample Images:</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {req.sample_images.map((img: string, idx: number) => (
+                          <a key={idx} href={img} target="_blank" rel="noopener noreferrer" className="relative aspect-square rounded-lg overflow-hidden border border-white/10 hover:border-[#ccff00] transition-all">
+                            <img src={img} alt="Sample" className="w-full h-full object-cover" />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {req.status === 'quoted' && (
                     <div className="bg-[#1E293B] p-3 rounded-lg border border-[#ccff00] space-y-3">
                       <div className="flex justify-between items-center">
@@ -367,7 +397,7 @@ export default function UnifiedDashboard() {
           </div>
         )}
 
-        {/* SECTION 3: EQUIPMENT (FEATURE #8 RESTORED) */}
+        {/* SECTION 3: EQUIPMENT */}
         <SectionHeader id="equipment" title="My Registered Equipment" icon={Shield} count={equipmentList.length} />
         {openSection === 'equipment' && (
           <div className="bg-[#1E293B] rounded-lg p-5 border border-white/10 mb-4 space-y-4">
@@ -413,7 +443,7 @@ export default function UnifiedDashboard() {
           </div>
         )}
 
-        {/* SECTION 4: WALLET & REFERRALS (FEATURE #9 RESTORED) */}
+        {/* SECTION 4: WALLET & REFERRALS */}
         <SectionHeader id="wallet" title="Wallet, TP Coins & Referrals" icon={Wallet} />
         {openSection === 'wallet' && (
           <div className="bg-[#1E293B] rounded-lg p-5 border border-white/10 mb-4 space-y-4">
