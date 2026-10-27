@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { supabase } from '../../lib/supabase';
 import BottomNav from '../../components/BottomNav';
-import { Plus, Package, TrendingUp, CheckCircle, Upload, X, Image as ImageIcon, User, MessageSquare, FileText, Calendar, DollarSign } from 'lucide-react';
+import { Plus, Package, TrendingUp, CheckCircle, Upload, X, Image as ImageIcon, User, MessageSquare, Shield, AlertTriangle } from 'lucide-react';
 
 export default function ProviderDashboard() {
   const router = useRouter();
@@ -12,6 +12,7 @@ export default function ProviderDashboard() {
   const [showForm, setShowForm] = useState(false);
   const [myListings, setMyListings] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]); 
+  const [isCertified, setIsCertified] = useState(false); // NEW: Certification state
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Publish Form States
@@ -28,7 +29,7 @@ export default function ProviderDashboard() {
   const [profilePreview, setProfilePreview] = useState<string | null>(null);
   const [profileMessage, setProfileMessage] = useState('');
 
-  // NEW: Quotation Modal States
+  // Quotation Modal States
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [quoteAmount, setQuoteAmount] = useState('');
@@ -39,7 +40,7 @@ export default function ProviderDashboard() {
   useEffect(() => {
     fetchMyListings();
     fetchRequests(); 
-    fetchProfile();
+    fetchProfileAndCertification();
   }, []);
 
   async function fetchMyListings() {
@@ -60,14 +61,17 @@ export default function ProviderDashboard() {
     if (data) setRequests(data);
   }
 
-  async function fetchProfile() {
+  // NEW: Fetch profile AND check TP WECAN certification
+  async function fetchProfileAndCertification() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data } = await supabase.from('profiles').select('avatar_url, full_name').eq('id', user.id).single();
-    if (data?.avatar_url) setProfilePreview(data.avatar_url);
+    const { data } = await supabase.from('profiles').select('avatar_url, full_name, wecan_certified').eq('id', user.id).single();
+    if (data) {
+      if (data.avatar_url) setProfilePreview(data.avatar_url);
+      setIsCertified(data.wecan_certified || false); // Set certification status
+    }
   }
 
-  // Handle File Change for Publish Form
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
@@ -86,7 +90,6 @@ export default function ProviderDashboard() {
     setPreviewUrls(previewUrls.filter((_, i) => i !== index));
   };
 
-  // NEW: Handle Quotation Submission
   async function submitQuotation() {
     if (!quoteAmount || !quoteDuration) return alert("Please enter both the Total Amount and Job Duration.");
     setQuoteLoading(true);
@@ -114,12 +117,10 @@ export default function ProviderDashboard() {
       .eq('id', selectedRequest.id);
 
     if (!error) {
-      alert("✅ Quotation sent successfully! The customer can now review and accept.");
+      alert("✅ Quotation sent successfully!");
       setShowQuoteModal(false);
       setSelectedRequest(null);
-      setQuoteAmount('');
-      setQuoteDuration('');
-      setQuoteFile(null);
+      setQuoteAmount(''); setQuoteDuration(''); setQuoteFile(null);
       fetchRequests();
     } else {
       alert("Error sending quotation.");
@@ -132,6 +133,19 @@ export default function ProviderDashboard() {
     const { error } = await supabase.from('quote_requests').update({ status: 'declined' }).eq('id', reqId);
     if (!error) {
       alert("Request declined.");
+      fetchRequests();
+    }
+  }
+
+  // NEW: Handle accepting a customer's counter-offer
+  async function handleAcceptCounterOffer(reqId: string) {
+    if (!confirm("Accept this counter-offer? The customer will be notified to proceed with payment.")) return;
+    const { error } = await supabase
+      .from('quote_requests')
+      .update({ status: 'accepted_by_provider' })
+      .eq('id', reqId);
+    if (!error) {
+      alert("✅ Counter-offer accepted! Customer can now proceed to payment.");
       fetchRequests();
     }
   }
@@ -205,7 +219,7 @@ export default function ProviderDashboard() {
       </div>
 
       <div className="max-w-4xl mx-auto p-6 space-y-6">
-        {/* PROFILE PHOTO & STATS (Kept same as before) */}
+        {/* PROFILE PHOTO & STATS */}
         <div className="bg-[#1E293B] p-6 rounded-2xl border border-white/10 flex flex-col items-center text-center">
           <label className="relative cursor-pointer group">
             <div className="w-24 h-24 rounded-full bg-[#0F172A] border-2 border-dashed border-[#ccff00] flex items-center justify-center overflow-hidden">
@@ -228,40 +242,54 @@ export default function ProviderDashboard() {
           </div>
           <div className="bg-[#1E293B] p-4 rounded-2xl border border-white/10">
             <MessageSquare className="text-[#ccff00] mb-2" size={24} />
-            <p className="text-2xl font-black">{requests.filter(r => r.status === 'pending').length}</p>
-            <p className="text-xs text-slate-400">Pending Requests</p>
+            <p className="text-2xl font-black">{requests.filter(r => r.status === 'pending' || r.status === 'negotiating').length}</p>
+            <p className="text-xs text-slate-400">Pending Actions</p>
           </div>
         </div>
 
-        {/* PUBLISH FORM (Kept same as before) */}
-        {!showForm ? (
-          <button onClick={() => setShowForm(true)} className="w-full flex items-center justify-center gap-2 bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-2xl hover:scale-[1.02] transition-all shadow-lg shadow-[#ccff00]/20">
-            <Plus size={20} /> Publish New Service
-          </button>
-        ) : (
-          <div className="bg-[#1E293B] p-6 rounded-2xl border border-[#ccff00]/30 shadow-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-white">Add New Service/Product</h2>
-              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-white">Cancel</button>
-            </div>
-            {message && <div className={`p-3 rounded-xl mb-4 text-center font-bold text-sm ${message.includes('✅') ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>{message}</div>}
-            <form onSubmit={handlePublish} className="space-y-4">
-              <input type="text" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
-              <input type="number" required value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Price in Naira" className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
-              <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description..." className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none h-24" />
-              <div className="grid grid-cols-2 gap-4">
-                <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none">
-                  <option>Mechanics</option><option>Tailors & Fashion</option><option>Electricians</option><option>Home Services</option><option>Car Spare Parts</option><option>Electronics</option>
-                </select>
-                <select value={type} onChange={(e) => setType(e.target.value)} className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none">
-                  <option value="Book">Book a Service</option><option value="Buy">Sell a Product</option>
-                </select>
-              </div>
-              <button type="submit" disabled={loading} className="w-full bg-[#ccff00] text-[#0F172A] font-black py-3 rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                {loading ? 'Uploading...' : 'Publish to Marketplace'}
-              </button>
-            </form>
+        {/* TP WECAN CERTIFICATION GATE */}
+        {!isCertified ? (
+          <div className="bg-red-500/10 border-2 border-red-500/30 p-8 rounded-2xl text-center">
+            <Shield className="mx-auto text-red-400 mb-4" size={48} />
+            <h3 className="text-white font-black text-xl mb-2">🔒 TP WECAN Certification Required</h3>
+            <p className="text-slate-300 text-sm mb-6 max-w-md mx-auto">
+              To maintain the highest quality and trust on TP Market, only certified TP WECAN providers can publish jobs and services. Please complete your cooperative certification to unlock this feature.
+            </p>
+            <button className="bg-red-500 text-white font-black py-3 px-8 rounded-xl hover:bg-red-600 transition-all shadow-lg shadow-red-500/20">
+              Start Certification Process
+            </button>
           </div>
+        ) : (
+          /* PUBLISH FORM (Only visible if certified) */
+          !showForm ? (
+            <button onClick={() => setShowForm(true)} className="w-full flex items-center justify-center gap-2 bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-2xl hover:scale-[1.02] transition-all shadow-lg shadow-[#ccff00]/20">
+              <Plus size={20} /> Publish New Service
+            </button>
+          ) : (
+            <div className="bg-[#1E293B] p-6 rounded-2xl border border-[#ccff00]/30 shadow-2xl">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-white">Add New Service/Product</h2>
+                <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-white">Cancel</button>
+              </div>
+              {message && <div className={`p-3 rounded-xl mb-4 text-center font-bold text-sm ${message.includes('✅') ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>{message}</div>}
+              <form onSubmit={handlePublish} className="space-y-4">
+                <input type="text" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Name (e.g. iPhone 15 Pro or AC Repair)" className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
+                <input type="number" required value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Price in Naira" className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
+                <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description..." className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none h-24" />
+                <div className="grid grid-cols-2 gap-4">
+                  <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none">
+                    <option>Mechanics</option><option>Tailors & Fashion</option><option>Electricians</option><option>Home Services</option><option>Car Spare Parts</option><option>Electronics</option>
+                  </select>
+                  <select value={type} onChange={(e) => setType(e.target.value)} className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none">
+                    <option value="Book">Book a Service</option><option value="Buy">Sell a Product</option>
+                  </select>
+                </div>
+                <button type="submit" disabled={loading} className="w-full bg-[#ccff00] text-[#0F172A] font-black py-3 rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                  {loading ? 'Uploading...' : 'Publish to Marketplace'}
+                </button>
+              </form>
+            </div>
+          )
         )}
 
         {/* INCOMING REQUESTS SECTION */}
@@ -285,9 +313,11 @@ export default function ProviderDashboard() {
                     </div>
                     <span className={`text-xs font-bold px-2 py-1 rounded-full ${
                       req.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' : 
-                      req.status === 'quoted' ? 'bg-blue-500/20 text-blue-400' : 'bg-green-500/20 text-green-400'
+                      req.status === 'quoted' ? 'bg-blue-500/20 text-blue-400' : 
+                      req.status === 'negotiating' ? 'bg-purple-500/20 text-purple-400' :
+                      'bg-green-500/20 text-green-400'
                     }`}>
-                      {req.status?.toUpperCase() || 'PENDING'}
+                      {req.status?.replace('_', ' ').toUpperCase() || 'PENDING'}
                     </span>
                   </div>
                   
@@ -295,26 +325,39 @@ export default function ProviderDashboard() {
                     <p className="text-white text-sm italic">"{req.description}"</p>
                   </div>
 
+                  {/* PENDING: Send Quotation */}
                   {req.status === 'pending' && (
                     <div className="flex gap-2">
-                      <button 
-                        onClick={() => { setSelectedRequest(req); setShowQuoteModal(true); }}
-                        className="flex-1 bg-[#ccff00] text-[#0F172A] text-xs font-bold py-2.5 rounded-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-1"
-                      >
-                        <FileText size={14} /> Send Quotation
+                      <button onClick={() => { setSelectedRequest(req); setShowQuoteModal(true); }} className="flex-1 bg-[#ccff00] text-[#0F172A] text-xs font-bold py-2.5 rounded-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-1">
+                        Send Quotation
                       </button>
-                      <button 
-                        onClick={() => handleDecline(req.id)}
-                        className="flex-1 bg-red-500/20 text-red-400 text-xs font-bold py-2.5 rounded-xl hover:bg-red-500/30 transition-all"
-                      >
+                      <button onClick={() => handleDecline(req.id)} className="flex-1 bg-red-500/20 text-red-400 text-xs font-bold py-2.5 rounded-xl hover:bg-red-500/30 transition-all">
                         Decline
                       </button>
                     </div>
                   )}
-                  
+
+                  {/* QUOTED: Waiting for customer */}
                   {req.status === 'quoted' && (
-                    <div className="text-center text-sm text-slate-400 bg-[#0F172A] p-2 rounded-lg border border-blue-500/20">
+                    <div className="text-center text-sm text-slate-400 bg-[#0F172A] p-3 rounded-lg border border-blue-500/20">
                       ✅ Quotation sent. Waiting for customer to accept or negotiate.
+                    </div>
+                  )}
+
+                  {/* NEGOTIATING: Customer sent a counter-offer */}
+                  {req.status === 'negotiating' && (
+                    <div className="bg-purple-500/10 border border-purple-500/30 p-4 rounded-xl">
+                      <p className="text-purple-400 font-bold text-sm mb-2 flex items-center gap-2">
+                        🔄 Customer Counter-Offer Received
+                      </p>
+                      <div className="flex gap-2">
+                        <button onClick={() => handleAcceptCounterOffer(req.id)} className="flex-1 bg-[#ccff00] text-[#0F172A] text-xs font-bold py-2.5 rounded-xl hover:scale-[1.02] transition-all">
+                          Accept Counter-Offer
+                        </button>
+                        <button onClick={() => handleDecline(req.id)} className="flex-1 bg-red-500/20 text-red-400 text-xs font-bold py-2.5 rounded-xl hover:bg-red-500/30 transition-all">
+                          Decline
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -323,12 +366,10 @@ export default function ProviderDashboard() {
           )}
         </div>
 
-        {/* MY ACTIVE SERVICES (Kept same) */}
-        <div>
-          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><CheckCircle size={18} className="text-[#ccff00]" /> My Active Services</h2>
-          {myListings.length === 0 ? (
-            <p className="text-slate-400 text-center py-8 bg-[#1E293B] rounded-2xl border border-white/5">You haven't published any services yet.</p>
-          ) : (
+        {/* MY ACTIVE SERVICES */}
+        {isCertified && myListings.length > 0 && (
+          <div>
+            <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><CheckCircle size={18} className="text-[#ccff00]" /> My Active Services</h2>
             <div className="space-y-3">
               {myListings.map((item: any) => (
                 <div key={item.id} className="bg-[#1E293B] p-4 rounded-2xl border border-white/10 flex gap-4 items-center">
@@ -344,11 +385,11 @@ export default function ProviderDashboard() {
                 </div>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* NEW: PROFESSIONAL QUOTATION MODAL */}
+      {/* QUOTATION MODAL (Same as before) */}
       {showQuoteModal && selectedRequest && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#1E293B] w-full max-w-md rounded-3xl p-6 border border-[#ccff00]/30 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -356,62 +397,21 @@ export default function ProviderDashboard() {
               <h2 className="text-xl font-black text-white">Send Quotation</h2>
               <button onClick={() => { setShowQuoteModal(false); setSelectedRequest(null); }}><X className="text-slate-400 hover:text-white" /></button>
             </div>
-
             <div className="bg-[#0F172A] p-3 rounded-xl mb-4 border border-white/10">
               <p className="text-xs text-slate-400 mb-1">Customer</p>
               <p className="font-bold text-white">{selectedRequest.customer_name || 'Unknown'}</p>
               <p className="text-xs text-[#ccff00]">📍 {selectedRequest.customer_location || 'Nigeria'}</p>
             </div>
-
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-slate-400 mb-1 block flex items-center gap-1"><DollarSign size={14} /> Total Project Amount (₦)</label>
-                <input 
-                  type="number" 
-                  value={quoteAmount} 
-                  onChange={(e) => setQuoteAmount(e.target.value)} 
-                  placeholder="e.g. 50000" 
-                  className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" 
-                />
+                <label className="text-xs font-bold text-slate-400 mb-1 block">Total Project Amount (₦)</label>
+                <input type="number" value={quoteAmount} onChange={(e) => setQuoteAmount(e.target.value)} placeholder="e.g. 50000" className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
               </div>
-
               <div>
-                <label className="text-xs font-bold text-slate-400 mb-1 block flex items-center gap-1"><Calendar size={14} /> Job Duration (Days)</label>
-                <input 
-                  type="number" 
-                  value={quoteDuration} 
-                  onChange={(e) => setQuoteDuration(e.target.value)} 
-                  placeholder="e.g. 3" 
-                  className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" 
-                />
-                <p className="text-[10px] text-slate-500 mt-1">Countdown starts immediately after advance/total payment.</p>
+                <label className="text-xs font-bold text-slate-400 mb-1 block">Job Duration (Days)</label>
+                <input type="number" value={quoteDuration} onChange={(e) => setQuoteDuration(e.target.value)} placeholder="e.g. 3" className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
               </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-400 mb-1 block flex items-center gap-1"><FileText size={14} /> Attach Quotation (PDF/Word)</label>
-                <label className="w-full bg-[#0F172A] border border-dashed border-white/20 rounded-xl py-6 px-4 text-center cursor-pointer hover:border-[#ccff00]/50 transition-all block">
-                  <input 
-                    type="file" 
-                    accept=".pdf,.doc,.docx" 
-                    onChange={(e) => setQuoteFile(e.target.files?.[0] || null)} 
-                    className="hidden" 
-                  />
-                  {quoteFile ? (
-                    <p className="text-[#ccff00] font-bold text-sm">{quoteFile.name}</p>
-                  ) : (
-                    <>
-                      <Upload className="mx-auto text-slate-400 mb-2" size={24} />
-                      <p className="text-sm text-slate-400">Click to upload document</p>
-                    </>
-                  )}
-                </label>
-              </div>
-
-              <button 
-                onClick={submitQuotation} 
-                disabled={quoteLoading} 
-                className="w-full bg-[#ccff00] text-[#0F172A] font-black py-3.5 rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-              >
+              <button onClick={submitQuotation} disabled={quoteLoading} className="w-full bg-[#ccff00] text-[#0F172A] font-black py-3.5 rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50">
                 {quoteLoading ? 'Sending...' : 'Submit Quotation'}
               </button>
             </div>
