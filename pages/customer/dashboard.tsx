@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, FormEvent } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
-import { Search, Shield, Plus, MessageCircle, ChevronDown, ChevronUp, Lock, Briefcase, Wallet, Upload, X, Image as ImageIcon, Package, Clock, AlertTriangle, Wrench, Download, Check, Copy, Gift } from 'lucide-react';
+import { Search, Shield, Plus, MessageCircle, ChevronDown, ChevronUp, Lock, Briefcase, Wallet, Upload, X, Image as ImageIcon, Package, Clock, AlertTriangle, Wrench, Download, Check, Copy, Gift, FileText, DollarSign, Calendar } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import BottomNav from '../../components/BottomNav';
 
@@ -20,7 +20,7 @@ export default function UnifiedDashboard() {
   const [daysLeft, setDaysLeft] = useState<number | null>(null);
   const [complaintFiled, setComplaintFiled] = useState(false);
   const GUARANTEE_DAYS = 90;
-  const JOB_COMPLETION_DATE = '2026-09-03'; // Demo date
+  const JOB_COMPLETION_DATE = '2026-09-03'; 
 
   // Accordion State
   const [openSection, setOpenSection] = useState('publish'); 
@@ -40,6 +40,14 @@ export default function UnifiedDashboard() {
   const [pYear, setPYear] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+
+  // NEW: Quotation Modal States (The Missing Form!)
+  const [showQuoteModal, setShowQuoteModal] = useState(false);
+  const [selectedReq, setSelectedReq] = useState<any>(null);
+  const [quoteAmount, setQuoteAmount] = useState('');
+  const [quoteDuration, setQuoteDuration] = useState('');
+  const [quoteFile, setQuoteFile] = useState<File | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
 
   // Equipment Form States
   const [eqType, setEqType] = useState('Gasoline Car Repair');
@@ -75,7 +83,6 @@ export default function UnifiedDashboard() {
     }
     loadData();
 
-    // Calculate Guarantee Days
     const completed = new Date(JOB_COMPLETION_DATE).getTime();
     const elapsedDays = Math.floor((Date.now() - completed) / (1000 * 60 * 60 * 24));
     setDaysLeft(Math.max(0, GUARANTEE_DAYS - elapsedDays));
@@ -97,6 +104,42 @@ export default function UnifiedDashboard() {
     setSelectedFiles(selectedFiles.filter((_, i) => i !== index));
     setPreviewUrls(previewUrls.filter((_, i) => i !== index));
   };
+
+  // NEW: Submit Full Quotation with Amount, Duration, and Attachment
+  async function submitQuotation() {
+    if (!quoteAmount || !quoteDuration) return alert("Please enter both the Total Amount and Job Duration.");
+    setQuoteLoading(true);
+
+    let attachmentUrl = null;
+    if (quoteFile) {
+      const filePath = `quotations/${user.id}/${Date.now()}_${quoteFile.name}`;
+      const { error: uploadError } = await supabase.storage.from('product-images').upload(filePath, quoteFile);
+      if (!uploadError) {
+        const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(filePath);
+        attachmentUrl = publicUrl;
+      }
+    }
+
+    const { error } = await supabase.from('quote_requests').update({ 
+      status: 'quoted',
+      quoted_amount: parseFloat(quoteAmount),
+      job_duration_days: parseInt(quoteDuration),
+      attachment_url: attachmentUrl,
+      description: `${selectedReq.description}\n\n---\n[QUOTATION SENT: ₦${parseFloat(quoteAmount).toLocaleString()} | Duration: ${quoteDuration} Days]`
+    }).eq('id', selectedReq.id);
+
+    if (!error) {
+      alert("✅ Quotation sent successfully!");
+      setShowQuoteModal(false);
+      setSelectedReq(null);
+      setQuoteAmount(''); setQuoteDuration(''); setQuoteFile(null);
+      const { data } = await supabase.from('quote_requests').select('*').eq('seller_id', user.id);
+      if (data) setIncomingRequests(data);
+    } else {
+      alert("Error sending quotation: " + error.message);
+    }
+    setQuoteLoading(false);
+  }
 
   async function handlePublish(e: React.FormEvent) {
     e.preventDefault();
@@ -141,8 +184,9 @@ export default function UnifiedDashboard() {
     if (data) setMyRequests(data);
   }
 
-  async function handleProviderResponse(reqId: string, status: string) {
-    await supabase.from('quote_requests').update({ status }).eq('id', reqId);
+  async function handleDeclineRequest(reqId: string) {
+    if(!confirm("Decline this request?")) return;
+    await supabase.from('quote_requests').update({ status: 'declined' }).eq('id', reqId);
     const { data } = await supabase.from('quote_requests').select('*').eq('seller_id', user.id);
     if (data) setIncomingRequests(data);
   }
@@ -246,7 +290,6 @@ export default function UnifiedDashboard() {
                           </div>
                           <p className="text-slate-300 text-xs mb-3 italic border-l-2 border-[#ccff00] pl-3">"{req.description}"</p>
                           
-                          {/* NEW: Display Sample Images for Provider */}
                           {req.sample_images && req.sample_images.length > 0 && (
                             <div className="mb-3">
                               <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Sample Images Provided:</p>
@@ -262,8 +305,9 @@ export default function UnifiedDashboard() {
 
                           {req.status === 'pending' && (
                             <div className="flex gap-2">
-                              <button onClick={() => handleProviderResponse(req.id, 'quoted')} className="flex-1 bg-[#ccff00] text-[#0F172A] text-xs font-black py-2 rounded-lg">Send Quote</button>
-                              <button onClick={() => handleProviderResponse(req.id, 'declined')} className="flex-1 bg-red-500/20 text-red-400 text-xs font-bold py-2 rounded-lg">Decline</button>
+                              {/* FIXED: This now opens the Quotation Modal instead of instantly sending */}
+                              <button onClick={() => { setSelectedReq(req); setShowQuoteModal(true); }} className="flex-1 bg-[#ccff00] text-[#0F172A] text-xs font-black py-2 rounded-lg">Send Quotation</button>
+                              <button onClick={() => handleDeclineRequest(req.id)} className="flex-1 bg-red-500/20 text-red-400 text-xs font-bold py-2 rounded-lg">Decline</button>
                             </div>
                           )}
                           {req.status === 'quoted' && <p className="text-center text-xs text-[#ccff00] font-bold bg-[#ccff00]/10 py-2 rounded-lg">✅ Quote Sent. Waiting for customer.</p>}
@@ -360,7 +404,6 @@ export default function UnifiedDashboard() {
                   </div>
                   <p className="text-slate-300 text-xs mb-3 italic border-l-2 border-[#ccff00] pl-3">"{req.description}"</p>
                   
-                  {/* NEW: Display Sample Images for Customer Review */}
                   {req.sample_images && req.sample_images.length > 0 && (
                     <div className="mb-3">
                       <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Your Sample Images:</p>
@@ -480,6 +523,49 @@ export default function UnifiedDashboard() {
         )}
 
       </div>
+
+      {/* NEW: PROFESSIONAL QUOTATION MODAL FOR PROVIDERS */}
+      {showQuoteModal && selectedReq && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#1E293B] w-full max-w-md rounded-xl border border-[#ccff00]/30 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-4 border-b border-white/10">
+              <h2 className="text-lg font-black text-white">Send Quotation</h2>
+              <button onClick={() => { setShowQuoteModal(false); setSelectedReq(null); }}><X className="text-slate-400 hover:text-white" /></button>
+            </div>
+            
+            <div className="p-4 space-y-4">
+              <div className="bg-[#0F172A] p-3 rounded-lg border border-white/10">
+                <p className="text-xs text-slate-400 mb-1">Customer</p>
+                <p className="font-bold text-white">{selectedReq.customer_name || 'Unknown'}</p>
+                <p className="text-xs text-[#ccff00]">📍 {selectedReq.customer_location || 'Nigeria'}</p>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-400 mb-1 block flex items-center gap-1"><DollarSign size={14} /> Total Project Amount (₦)</label>
+                <input type="number" value={quoteAmount} onChange={(e) => setQuoteAmount(e.target.value)} placeholder="e.g. 50000" className="w-full bg-[#0F172A] border border-white/10 rounded-lg py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-400 mb-1 block flex items-center gap-1"><Calendar size={14} /> Job Duration (Days)</label>
+                <input type="number" value={quoteDuration} onChange={(e) => setQuoteDuration(e.target.value)} placeholder="e.g. 3" className="w-full bg-[#0F172A] border border-white/10 rounded-lg py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-400 mb-1 block flex items-center gap-1"><FileText size={14} /> Attach Quotation (PDF/Word)</label>
+                <label className="w-full bg-[#0F172A] border border-dashed border-white/20 rounded-lg py-4 px-4 text-center cursor-pointer hover:border-[#ccff00]/50 transition-all block">
+                  <input type="file" accept=".pdf,.doc,.docx" onChange={(e) => setQuoteFile(e.target.files?.[0] || null)} className="hidden" />
+                  {quoteFile ? <p className="text-[#ccff00] font-bold text-sm">{quoteFile.name}</p> : <p className="text-sm text-slate-400">Click to upload document</p>}
+                </label>
+              </div>
+
+              <button onClick={submitQuotation} disabled={quoteLoading} className="w-full bg-[#ccff00] text-[#0F172A] font-black py-3.5 rounded-lg hover:scale-[1.02] transition-all disabled:opacity-50">
+                {quoteLoading ? 'Sending...' : 'Submit Quotation'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <BottomNav />
     </div>
   );
