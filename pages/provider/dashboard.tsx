@@ -43,17 +43,56 @@ export default function ProviderDashboard() {
     if (data) setMyListings(data);
   }
 
-  // TEMPORARY TEST: Fetch ALL requests to see if they exist (No ID filter)
+  // SECURE: Fetch ONLY the requests meant for this specific provider
   async function fetchRequests() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    
     const { data, error } = await supabase
-      .from('quote_requests') // Changed from 'requests' to 'quote_requests'
+      .from('quote_requests')
       .select('*')
+      .eq('seller_id', user.id)
       .order('created_at', { ascending: false });
       
-    console.log("DEBUG - Requests found:", data); // Check your browser console (F12)
-    console.log("DEBUG - Error:", error);
-    
     if (data) setRequests(data);
+  }
+
+  // Function to handle Declining a request
+  async function handleDecline(reqId: string) {
+    if (!confirm("Are you sure you want to decline this request?")) return;
+    
+    const { error } = await supabase
+      .from('quote_requests')
+      .update({ status: 'declined' })
+      .eq('id', reqId);
+
+    if (!error) {
+      alert("Request declined.");
+      fetchRequests(); // Refresh the list
+    } else {
+      alert("Error declining request.");
+    }
+  }
+
+  // Function to handle Accepting and Replying
+  async function handleAccept(reqId: string, originalMessage: string) {
+    const reply = prompt("Type your reply/acceptance message to the customer:");
+    if (!reply) return; // User cancelled the prompt
+
+    const { error } = await supabase
+      .from('quote_requests')
+      .update({ 
+        status: 'accepted',
+        description: `MY REPLY: ${reply}\n\n---\nORIGINAL REQUEST: ${originalMessage}`
+      })
+      .eq('id', reqId);
+
+    if (!error) {
+      alert("Reply sent and request accepted!");
+      fetchRequests(); // Refresh the list
+    } else {
+      alert("Error sending reply.");
+    }
   }
 
   async function fetchProfile() {
@@ -302,15 +341,20 @@ export default function ProviderDashboard() {
                       {req.status?.toUpperCase() || 'PENDING'}
                     </span>
                   </div>
-                  {/* FIXED: Changed req.message to req.description to match database */}
                   <p className="text-white text-sm mb-3 bg-[#0F172A] p-3 rounded-lg border border-white/5 italic">
                     "{req.description}"
                   </p>
                   <div className="flex gap-2">
-                    <button className="flex-1 bg-[#ccff00] text-[#0F172A] text-xs font-bold py-2.5 rounded-xl hover:scale-[1.02] transition-all">
+                    <button 
+                      onClick={() => handleAccept(req.id, req.description)}
+                      className="flex-1 bg-[#ccff00] text-[#0F172A] text-xs font-bold py-2.5 rounded-xl hover:scale-[1.02] transition-all"
+                    >
                       Accept / Reply
                     </button>
-                    <button className="flex-1 bg-red-500/20 text-red-400 text-xs font-bold py-2.5 rounded-xl hover:bg-red-500/30 transition-all">
+                    <button 
+                      onClick={() => handleDecline(req.id)}
+                      className="flex-1 bg-red-500/20 text-red-400 text-xs font-bold py-2.5 rounded-xl hover:bg-red-500/30 transition-all"
+                    >
                       Decline
                     </button>
                   </div>
