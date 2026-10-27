@@ -12,7 +12,7 @@ export default function ProductDetailPage() {
   const router = useRouter();
   const { id } = router.query;
   
-  const [product, setProduct] = useState(null);
+  const [product, setProduct] = useState<any>(null);
   const [userCoins, setUserCoins] = useState(0);
   const [loading, setLoading] = useState(true);
   
@@ -22,7 +22,7 @@ export default function ProductDetailPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [offerPrice, setOfferPrice] = useState('');
   const [quoteMessage, setQuoteMessage] = useState('');
-  const [selectedInstallment, setSelectedInstallment] = useState(null);
+  const [selectedInstallment, setSelectedInstallment] = useState<number | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -101,7 +101,7 @@ export default function ProductDetailPage() {
 
     try {
       const existingCart = JSON.parse(localStorage.getItem('tpmarket_cart') || '[]');
-      const existingIndex = existingCart.findIndex((item) => item.productId === product.id);
+      const existingIndex = existingCart.findIndex((item: any) => item.productId === product.id);
       
       if (existingIndex > -1) {
         existingCart[existingIndex].quantity += 1;
@@ -117,7 +117,7 @@ export default function ProductDetailPage() {
     }
   };
 
-  // FIXED: Save negotiation to quote_requests table with seller_id
+  // UPDATED: Save negotiation with customer name and location
   const submitNegotiation = async () => {
     if (!offerPrice) return alert('Please enter a price');
     try {
@@ -127,7 +127,9 @@ export default function ProductDetailPage() {
       const { error } = await supabase.from('quote_requests').insert({
         product_id: product.id,
         customer_id: user.id,
-        seller_id: product.seller_id, // This is the key!
+        seller_id: product.seller_id,
+        customer_name: user.user_metadata?.full_name || user.email, // Captures customer name
+        customer_location: `${product.state}, ${product.country}`, // Uses product location as default, can be updated to user profile location later
         description: `Negotiation Offer: ₦${parseFloat(offerPrice).toLocaleString()} (Original: ₦${product.price.toLocaleString()})`,
         request_type: 'negotiate',
         status: 'pending'
@@ -144,7 +146,7 @@ export default function ProductDetailPage() {
     }
   };
 
-  // NEW: Handle quote request
+  // UPDATED: Handle quote request with customer name and location
   const submitQuoteRequest = async () => {
     if (!quoteMessage.trim()) return alert('Please enter your request details');
     try {
@@ -154,7 +156,9 @@ export default function ProductDetailPage() {
       const { error } = await supabase.from('quote_requests').insert({
         product_id: product.id,
         customer_id: user.id,
-        seller_id: product.seller_id, // This is the key!
+        seller_id: product.seller_id,
+        customer_name: user.user_metadata?.full_name || user.email, // Captures customer name
+        customer_location: `${product.state}, ${product.country}`, // Uses product location as default
         description: quoteMessage,
         request_type: 'quote',
         status: 'pending'
@@ -186,7 +190,7 @@ export default function ProductDetailPage() {
           </button>
         </div>
         <div className="flex gap-2 p-3 overflow-x-auto">
-          {product.images.slice(0, 4).map((img, idx) => (
+          {product.images.slice(0, 4).map((img: string, idx: number) => (
             <button 
               key={idx} 
               onClick={() => setCurrentImage(idx)} 
@@ -217,7 +221,7 @@ export default function ProductDetailPage() {
           <p className="text-slate-300 text-sm leading-relaxed">{product.description || 'No description provided.'}</p>
           
           <div className="bg-red-500/10 border border-red-500/30 p-4 rounded-xl flex gap-3 items-start">
-            <span className="text-2xl">️</span>
+            <span className="text-2xl">⚠️</span>
             <div>
               <p className="text-red-400 text-xs font-black uppercase mb-1">Quality Assurance Notice</p>
               <p className="text-red-200/80 text-sm leading-relaxed">
@@ -284,7 +288,7 @@ export default function ProductDetailPage() {
               className="w-full bg-[#0F172A] border-2 border-[#ccff00] p-4 rounded-2xl mb-4 text-left flex justify-between items-center hover:bg-[#0F172A]/80 transition-all"
             >
               <div>
-                <p className="font-bold text-white text-lg"> Cash Payment</p>
+                <p className="font-bold text-white text-lg">💵 Cash Payment</p>
                 <p className="text-xs text-slate-400">Pay full amount now</p>
               </div>
               <p className="font-black text-[#ccff00]">₦{(product.price || 0).toLocaleString()}</p>
