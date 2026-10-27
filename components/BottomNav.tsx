@@ -8,10 +8,9 @@ export default function BottomNav() {
   const router = useRouter();
   const [unreadCount, setUnreadCount] = useState(0);
   
-  // Hardcoded to the working dashboard link
-  const accountLink = '/provider/dashboard'; 
+  // Everyone goes to the unified account hub
+  const accountLink = '/account'; 
 
-  // Fetch the REAL number of unread notifications
   useEffect(() => {
     async function getUnreadCount() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -31,7 +30,7 @@ export default function BottomNav() {
   const items = [
     { label: 'Shop', href: '/marketplace', icon: ShoppingBag },
     { label: 'Cart', href: '/cart', icon: ShoppingCart },
-    { label: 'Notifications', href: '/notifications', icon: Bell, badge: unreadCount }, // Now uses real count!
+    { label: 'Notifications', href: '/notifications', icon: Bell, badge: unreadCount },
     { label: 'Wishlist', href: '/wishlist', icon: Heart },
     { label: 'Account', href: accountLink, icon: User },
   ];
@@ -52,7 +51,6 @@ export default function BottomNav() {
             >
               <span className="relative">
                 <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
-                {/* Only show badge if count is greater than 0 */}
                 {item.badge > 0 && (
                   <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center leading-none">
                     {item.badge}

@@ -1,13 +1,14 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { Search, Coins, Wrench, Clock, AlertTriangle, Shield, Plus, Users, Copy, Check, MessageCircle, Gift } from 'lucide-react';
+import Link from 'next/link';
+import { Search, Coins, Wrench, Clock, AlertTriangle, Shield, Plus, Users, Copy, Check, MessageCircle, Gift, Download } from 'lucide-react';
+import { supabase } from '../../lib/supabase'; // ADDED: Supabase import for fetching requests
 import PageShell from '../../components/PageShell';
 import LandingNavbar from '../../components/LandingNavbar';
 import MediaUploader, { MediaFile } from '../../components/MediaUploader';
 import MediaLightbox from '../../components/MediaLightbox';
 import StatCard from '../../components/StatCard';
-import Link from 'next/link';
 
 const customerName = 'Amara';
 const tpCoins = 0;
@@ -23,39 +24,14 @@ const REFERRAL_GOAL_2 = 10000;
 const REFERRAL_GOAL_2_REWARD = '₦5,000,000 Annual Reward';
 
 const equipmentTypes = [
-  'Gasoline Car Repair',
-  'EV Car Repair',
-  'Car Painting',
-  'Phone',
-  'AC (Air Conditioner)',
-  'Photocopier',
-  'Computer',
-  'Laptop',
-  'Printer',
-  'Generator',
-  'Fan',
-  'TV (Television)',
-  'Fridge (Refrigerator)',
-  'Hospital Equipment',
-  'Solar Equipment',
-  'Home Maintenance',
-  'Building Structure Maintenance',
-  'Delivery Bike Repair',
+  'Gasoline Car Repair', 'EV Car Repair', 'Car Painting', 'Phone', 'AC (Air Conditioner)',
+  'Photocopier', 'Computer', 'Laptop', 'Printer', 'Generator', 'Fan', 'TV (Television)',
+  'Fridge (Refrigerator)', 'Hospital Equipment', 'Solar Equipment', 'Home Maintenance',
+  'Building Structure Maintenance', 'Delivery Bike Repair',
 ];
 
 const CAR_TYPES = ['Gasoline Car Repair', 'EV Car Repair', 'Car Painting'];
-const ELECTRONICS_TYPES = [
-  'Phone',
-  'AC (Air Conditioner)',
-  'Computer',
-  'Laptop',
-  'TV (Television)',
-  'Fridge (Refrigerator)',
-  'Photocopier',
-  'Printer',
-  'Generator',
-  'Fan',
-];
+const ELECTRONICS_TYPES = ['Phone', 'AC (Air Conditioner)', 'Computer', 'Laptop', 'TV (Television)', 'Fridge (Refrigerator)', 'Photocopier', 'Printer', 'Generator', 'Fan'];
 const HOSPITAL_TYPE = 'Hospital Equipment';
 const SOLAR_TYPE = 'Solar Equipment';
 const HOME_MAINTENANCE_TYPE = 'Home Maintenance';
@@ -63,36 +39,13 @@ const BUILDING_TYPE = 'Building Structure Maintenance';
 const BIKE_TYPE = 'Delivery Bike Repair';
 
 interface Equipment {
-  id: string;
-  type: string;
-  modelNumber: string;
-  serialNumber: string;
-  yearOfManufacture: string;
-  chassisNumber: string;
-  plateNumber: string;
-  mileage: string;
-  vehicleType: string;
-  color: string;
-  currentState: string;
-  subEquipmentType: string;
-  capacityRating: string;
-  propertyDescription: string;
-  locationAddress: string;
-  maintenanceType: string;
-  buildingType: string;
-  numberOfFloors: string;
-  totalSquareMeters: string;
-  structuralIssues: string;
-  frameNumber: string;
-  engineNumber: string;
-  bikeType: string;
-  status: string;
-  media: MediaFile[];
-  mediaCount: number;
-  savedAt: string;
-  forSale: boolean;
-  stolen: boolean;
-  showHistory: boolean;
+  id: string; type: string; modelNumber: string; serialNumber: string; yearOfManufacture: string;
+  chassisNumber: string; plateNumber: string; mileage: string; vehicleType: string; color: string;
+  currentState: string; subEquipmentType: string; capacityRating: string; propertyDescription: string;
+  locationAddress: string; maintenanceType: string; buildingType: string; numberOfFloors: string;
+  totalSquareMeters: string; structuralIssues: string; frameNumber: string; engineNumber: string;
+  bikeType: string; status: string; media: MediaFile[]; mediaCount: number; savedAt: string;
+  forSale: boolean; stolen: boolean; showHistory: boolean;
 }
 
 function yearRange(start: number, end: number): number[] {
@@ -143,9 +96,7 @@ function loadStoredEquipment(): Equipment[] {
     if (!raw) return [];
     const parsed: StoredEquipment[] = JSON.parse(raw);
     return parsed.map((eq) => ({ ...eq, media: [] }));
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
 
 function persistEquipment(list: Equipment[]) {
@@ -156,17 +107,16 @@ function persistEquipment(list: Equipment[]) {
 
 const GUARANTEE_DAYS = 90;
 const JOB_COMPLETION_DATE = '2026-09-03';
-
-const recentJob = {
-  title: 'Car Engine Repair',
-  provider: 'Tunde Bakare',
-};
+const recentJob = { title: 'Car Engine Repair', provider: 'Tunde Bakare' };
 
 export default function CustomerDashboardTop() {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [daysLeft, setDaysLeft] = useState<number | null>(null);
   const [complaintFiled, setComplaintFiled] = useState(false);
+
+  // NEW: State for Quote Requests
+  const [requests, setRequests] = useState<any[]>([]);
 
   const [equipmentType, setEquipmentType] = useState(equipmentTypes[0]);
   const isCar = CAR_TYPES.includes(equipmentType);
@@ -226,29 +176,59 @@ export default function CustomerDashboardTop() {
     persistEquipment(equipmentList);
   }, [equipmentList, equipmentLoaded]);
 
+  // NEW: Fetch customer's quote requests
+  useEffect(() => {
+    async function fetchRequests() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase
+          .from('quote_requests')
+          .select('*')
+          .eq('customer_id', user.id)
+          .order('created_at', { ascending: false });
+        if (data) setRequests(data);
+      }
+    }
+    fetchRequests();
+  }, []);
+
+  // NEW: Handle Accepting a Quote
+  async function handleAcceptQuote(requestId: string) {
+    const { error } = await supabase
+      .from('quote_requests')
+      .update({ status: 'accepted_by_customer' })
+      .eq('id', requestId);
+    if (!error) {
+      alert('✅ Quote accepted! Proceeding to payment...');
+      setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'accepted_by_customer' } : r));
+      // router.push(`/customer/payment/${requestId}`); // Uncomment when payment page is ready
+    }
+  }
+
+  // NEW: Handle Negotiating a Quote
+  async function handleNegotiateQuote(requestId: string) {
+    const counterOffer = prompt('Enter your counter-offer amount (₦):');
+    if (!counterOffer) return;
+    const { error } = await supabase
+      .from('quote_requests')
+      .update({ 
+        status: 'negotiating',
+        description: `Customer Counter-Offer: ₦${parseFloat(counterOffer).toLocaleString()}`
+      })
+      .eq('id', requestId);
+    if (!error) {
+      alert('✅ Counter-offer sent! Provider will review.');
+      setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'negotiating', description: `Customer Counter-Offer: ₦${parseFloat(counterOffer).toLocaleString()}` } : r));
+    }
+  }
+
   function resetFormFields() {
-    setModelNumber('');
-    setSerialNumber('');
-    setYearOfManufacture('');
-    setChassisNumber('');
-    setPlateNumber('');
-    setMileage('');
-    setVehicleType(vehicleTypeOptions[0]);
-    setColor('');
-    setSubEquipmentType(hospitalSubTypeOptions[0]);
-    setCapacityRating('');
-    setPropertyDescription('');
-    setLocationAddress('');
-    setMaintenanceType(maintenanceTypeOptions[0]);
-    setBuildingType(buildingTypeOptions[0]);
-    setNumberOfFloors('');
-    setTotalSquareMeters('');
-    setStructuralIssues(structuralIssueOptions[0]);
-    setFrameNumber('');
-    setEngineNumber('');
-    setBikeType(bikeTypeOptions[0]);
-    setStatusText('');
-    setFormMedia([]);
+    setModelNumber(''); setSerialNumber(''); setYearOfManufacture(''); setChassisNumber('');
+    setPlateNumber(''); setMileage(''); setVehicleType(vehicleTypeOptions[0]); setColor('');
+    setSubEquipmentType(hospitalSubTypeOptions[0]); setCapacityRating(''); setPropertyDescription('');
+    setLocationAddress(''); setMaintenanceType(maintenanceTypeOptions[0]); setBuildingType(buildingTypeOptions[0]);
+    setNumberOfFloors(''); setTotalSquareMeters(''); setStructuralIssues(structuralIssueOptions[0]);
+    setFrameNumber(''); setEngineNumber(''); setBikeType(bikeTypeOptions[0]); setStatusText(''); setFormMedia([]);
   }
 
   function handleTypeChange(type: string) {
@@ -264,36 +244,17 @@ export default function CustomerDashboardTop() {
     setEquipmentList((prev) => [
       ...prev,
       {
-        id: `${Date.now()}`,
-        type: equipmentType,
-        modelNumber: modelNumber.trim(),
-        serialNumber: serialNumber.trim(),
-        yearOfManufacture,
-        chassisNumber: chassisNumber.trim(),
-        plateNumber: plateNumber.trim(),
-        mileage: mileage.trim(),
-        vehicleType: isCar ? vehicleType : '',
-        color: color.trim(),
-        currentState,
-        subEquipmentType: isHospital || isSolar ? subEquipmentType : '',
-        capacityRating: isSolar ? capacityRating.trim() : '',
-        propertyDescription: isHomeMaintenance ? propertyDescription.trim() : '',
-        locationAddress: isHomeMaintenance ? locationAddress.trim() : '',
-        maintenanceType: isHomeMaintenance ? maintenanceType : '',
-        buildingType: isBuilding ? buildingType : '',
-        numberOfFloors: isBuilding ? numberOfFloors.trim() : '',
-        totalSquareMeters: isBuilding ? totalSquareMeters.trim() : '',
-        structuralIssues: isBuilding ? structuralIssues : '',
-        frameNumber: isBike ? frameNumber.trim() : '',
-        engineNumber: isBike ? engineNumber.trim() : '',
-        bikeType: isBike ? bikeType : '',
-        status: statusText.trim(),
-        media: formMedia,
-        mediaCount: formMedia.length,
-        savedAt: new Date().toISOString(),
-        forSale: false,
-        stolen: false,
-        showHistory: false,
+        id: `${Date.now()}`, type: equipmentType, modelNumber: modelNumber.trim(), serialNumber: serialNumber.trim(),
+        yearOfManufacture, chassisNumber: chassisNumber.trim(), plateNumber: plateNumber.trim(), mileage: mileage.trim(),
+        vehicleType: isCar ? vehicleType : '', color: color.trim(), currentState,
+        subEquipmentType: isHospital || isSolar ? subEquipmentType : '', capacityRating: isSolar ? capacityRating.trim() : '',
+        propertyDescription: isHomeMaintenance ? propertyDescription.trim() : '', locationAddress: isHomeMaintenance ? locationAddress.trim() : '',
+        maintenanceType: isHomeMaintenance ? maintenanceType : '', buildingType: isBuilding ? buildingType : '',
+        numberOfFloors: isBuilding ? numberOfFloors.trim() : '', totalSquareMeters: isBuilding ? totalSquareMeters.trim() : '',
+        structuralIssues: isBuilding ? structuralIssues : '', frameNumber: isBike ? frameNumber.trim() : '',
+        engineNumber: isBike ? engineNumber.trim() : '', bikeType: isBike ? bikeType : '', status: statusText.trim(),
+        media: formMedia, mediaCount: formMedia.length, savedAt: new Date().toISOString(),
+        forSale: false, stolen: false, showHistory: false,
       },
     ]);
     resetFormFields();
@@ -329,9 +290,7 @@ export default function CustomerDashboardTop() {
 
   return (
     <PageShell>
-      <Head>
-        <title>Customer Dashboard — TPMarket</title>
-      </Head>
+      <Head><title>Customer Dashboard — TPMarket</title></Head>
       <LandingNavbar />
 
       <div className="max-w-3xl mx-auto px-6 py-10 relative">
@@ -339,27 +298,15 @@ export default function CustomerDashboardTop() {
         <div className="bg-darkcard rounded-3xl p-6 border border-white/10 shadow-[0_20px_60px_rgba(15,23,42,0.35)] mb-6">
           <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6">
             <h1 className="text-lg font-black text-white shrink-0">Welcome back, {customerName} 👋</h1>
-
             <form onSubmit={handleSearch} className="flex-1 w-full">
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#64748B]" size={18} />
-                <input
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search equipment, artisans, services..."
-                  className="w-full bg-white rounded-full py-3 pl-11 pr-5 text-sm text-[#0F172A] placeholder:text-[#64748B]/70 focus:outline-none focus:ring-2 focus:ring-lemon"
-                />
+                <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search equipment, artisans, services..." className="w-full bg-white rounded-full py-3 pl-11 pr-5 text-sm text-[#0F172A] placeholder:text-[#64748B]/70 focus:outline-none focus:ring-2 focus:ring-lemon" />
               </div>
             </form>
-
             <div className="flex items-center gap-2 shrink-0">
-              <span className="flex items-center gap-1.5 bg-yellow/10 text-yellow text-xs font-black px-3 py-2 rounded-full whitespace-nowrap">
-                🪙 {tpCoins.toLocaleString()} TP Coins
-              </span>
-              <span className="flex items-center gap-1.5 bg-lemon/10 text-lemon text-xs font-black px-3 py-2 rounded-full whitespace-nowrap">
-                💰 ₦{walletBalance.toLocaleString()} Wallet
-              </span>
+              <span className="flex items-center gap-1.5 bg-yellow/10 text-yellow text-xs font-black px-3 py-2 rounded-full whitespace-nowrap">🪙 {tpCoins.toLocaleString()} TP Coins</span>
+              <span className="flex items-center gap-1.5 bg-lemon/10 text-lemon text-xs font-black px-3 py-2 rounded-full whitespace-nowrap">💰 ₦{walletBalance.toLocaleString()} Wallet</span>
             </div>
           </div>
         </div>
@@ -371,363 +318,213 @@ export default function CustomerDashboardTop() {
           <StatCard icon={Users} label="My Pit Crew" value={String(pitCrewCount)} accent="sky" />
         </div>
 
+        {/* ACTIVE JOBS & 90-DAY GUARANTEE */}
         <div className="bg-darkcard rounded-3xl p-6 sm:p-8 border border-white/10 shadow-[0_20px_60px_rgba(15,23,42,0.35)] mb-6">
           <h2 className="text-white font-black text-lg mb-5">🛠️ Active Jobs & 90-Day Guarantee</h2>
-
           <div className="bg-white/5 rounded-2xl p-5">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-purple/10 text-purple flex items-center justify-center shrink-0">
-                <Wrench size={18} />
-              </div>
+              <div className="w-10 h-10 rounded-xl bg-purple/10 text-purple flex items-center justify-center shrink-0"><Wrench size={18} /></div>
               <div>
                 <p className="text-white font-bold text-sm">{recentJob.title}</p>
                 <p className="text-slate text-xs">by {recentJob.provider}</p>
               </div>
             </div>
-
-            <div
-              className={`flex items-center gap-2 rounded-2xl p-4 mb-4 ${
-                guaranteeActive ? 'bg-lemon/10 border border-lemon/30' : 'bg-white/5 border border-white/10'
-              }`}
-            >
-              {guaranteeActive ? (
-                <Clock className="text-lemon shrink-0" size={20} />
-              ) : (
-                <AlertTriangle className="text-slate shrink-0" size={20} />
-              )}
+            <div className={`flex items-center gap-2 rounded-2xl p-4 mb-4 ${guaranteeActive ? 'bg-lemon/10 border border-lemon/30' : 'bg-white/5 border border-white/10'}`}>
+              {guaranteeActive ? <Clock className="text-lemon shrink-0" size={20} /> : <AlertTriangle className="text-slate shrink-0" size={20} />}
               <div>
-                <p className={`font-black text-sm ${guaranteeActive ? 'text-lemon' : 'text-slate'}`}>
-                  {daysLeft === null ? '—' : guaranteeActive ? `${daysLeft} Days Left` : 'Guarantee Expired'}
-                </p>
+                <p className={`font-black text-sm ${guaranteeActive ? 'text-lemon' : 'text-slate'}`}>{daysLeft === null ? '—' : guaranteeActive ? `${daysLeft} Days Left` : 'Guarantee Expired'}</p>
                 <p className="text-slate text-xs">90-Day Repair Guarantee</p>
               </div>
             </div>
-
             {complaintFiled ? (
-              <p className="text-center text-sm text-lemon font-bold py-2">
-                ✅ Complaint filed! Our team will reach out within 24 hours.
-              </p>
+              <p className="text-center text-sm text-lemon font-bold py-2">✅ Complaint filed! Our team will reach out within 24 hours.</p>
             ) : guaranteeActive ? (
-              <button
-                onClick={() => setComplaintFiled(true)}
-                className="w-full bg-lemon text-[#0F172A] font-black py-3.5 rounded-full hover:scale-[1.02] hover:shadow-[0_0_25px_rgba(204,255,0,0.5)] transition-all"
-              >
-                File a Complaint
-              </button>
+              <button onClick={() => setComplaintFiled(true)} className="w-full bg-lemon text-[#0F172A] font-black py-3.5 rounded-full hover:scale-[1.02] hover:shadow-[0_0_25px_rgba(204,255,0,0.5)] transition-all">File a Complaint</button>
             ) : (
-              <button disabled className="w-full bg-white/10 text-slate font-black py-3.5 rounded-full cursor-not-allowed">
-                Warranty Expired
-              </button>
+              <button disabled className="w-full bg-white/10 text-slate font-black py-3.5 rounded-full cursor-not-allowed">Warranty Expired</button>
             )}
           </div>
         </div>
 
+        {/* NEW: MY REQUESTS & QUOTATIONS */}
+        <div className="bg-darkcard rounded-3xl p-6 sm:p-8 border border-white/10 shadow-[0_20px_60px_rgba(15,23,42,0.35)] mb-6">
+          <h2 className="flex items-center gap-2 text-white font-black text-lg mb-5">
+            <MessageCircle className="text-lemon" size={20} /> My Requests & Quotations
+          </h2>
+
+          {requests.length === 0 ? (
+            <div className="bg-white/5 rounded-2xl p-6 text-center">
+              <p className="text-slate text-sm">No requests yet. Start by requesting quotes from providers in the marketplace!</p>
+              <Link href="/marketplace" className="inline-block mt-4 bg-lemon text-[#0F172A] font-bold px-6 py-2.5 rounded-full hover:scale-105 transition-all">Browse Marketplace</Link>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {requests.map((req: any) => (
+                <div key={req.id} className="bg-white/5 rounded-2xl p-5 border border-white/10">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <h3 className="text-white font-bold text-sm">{req.request_type === 'negotiate' ? '💰 Negotiation' : '📋 Quote Request'}</h3>
+                      <p className="text-slate text-xs">{new Date(req.created_at).toLocaleDateString()}</p>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
+                      req.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
+                      req.status === 'quoted' ? 'bg-blue-500/20 text-blue-400' :
+                      req.status === 'accepted_by_customer' ? 'bg-green-500/20 text-green-400' :
+                      req.status === 'negotiating' ? 'bg-purple-500/20 text-purple-400' : 'bg-slate-500/20 text-slate-400'
+                    }`}>
+                      {req.status?.replace('_', ' ').toUpperCase() || 'PENDING'}
+                    </span>
+                  </div>
+
+                  <div className="bg-[#0F172A] p-3 rounded-xl border border-white/5 mb-3">
+                    <p className="text-slate text-xs italic">"{req.description}"</p>
+                  </div>
+
+                  {req.status === 'quoted' && req.quoted_amount && (
+                    <div className="bg-gradient-to-br from-[#0F172A] to-darkcard p-4 rounded-xl border border-lemon/30 mb-4 space-y-2">
+                      <h4 className="font-bold text-lemon text-xs uppercase">Provider's Quotation</h4>
+                      <div className="flex items-center gap-2 text-white">
+                        <span className="font-black text-xl">₦{req.quoted_amount.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-slate text-xs">
+                        <Clock size={14} className="text-lemon" />
+                        <span>{req.job_duration_days} Days to Complete</span>
+                      </div>
+                      {req.attachment_url && (
+                        <a href={req.attachment_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-lemon text-xs hover:underline">
+                          <Download size={12} /> Download Quotation Document
+                        </a>
+                      )}
+                    </div>
+                  )}
+
+                  {req.status === 'quoted' && (
+                    <div className="flex gap-3">
+                      <button onClick={() => handleAcceptQuote(req.id)} className="flex-1 bg-lemon text-[#0F172A] font-black py-3 rounded-full hover:scale-[1.02] transition-all text-xs flex items-center justify-center gap-1.5">
+                        <Check size={14} /> Accept Quote
+                      </button>
+                      <button onClick={() => handleNegotiateQuote(req.id)} className="flex-1 bg-white/5 border border-white/10 text-white font-bold py-3 rounded-full hover:bg-white/10 transition-all text-xs flex items-center justify-center gap-1.5">
+                        <MessageCircle size={14} /> Negotiate
+                      </button>
+                    </div>
+                  )}
+
+                  {(req.status === 'accepted_by_customer' || req.status === 'negotiating') && (
+                    <div className="bg-[#0F172A] p-3 rounded-xl border border-white/5 mt-3">
+                      <p className="text-xs text-slate text-center">
+                        {req.status === 'accepted_by_customer' ? '✅ Quote accepted! Waiting for payment processing...' : '⏳ Counter-offer sent. Waiting for provider review.'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* SECTION 1: REGISTER EQUIPMENT */}
         <div id="equipment-form" className="bg-darkcard rounded-3xl p-6 sm:p-8 border border-white/10 shadow-[0_20px_60px_rgba(15,23,42,0.35)] mb-6">
-          <h2 className="flex items-center gap-2 text-white font-black text-lg mb-1">
-            <Shield className="text-lemon" size={20} /> Register & Secure Your Equipment
-          </h2>
+          <h2 className="flex items-center gap-2 text-white font-black text-lg mb-1"><Shield className="text-lemon" size={20} /> Register & Secure Your Equipment</h2>
           <p className="text-slate text-xs mb-5">Register 15 items, get 90-day guarantee for ₦10,000</p>
 
           <div className="mb-4">
             <label className="text-slate text-xs font-semibold mb-1.5 block">Equipment Type</label>
-            <select
-              value={equipmentType}
-              onChange={(e) => handleTypeChange(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white font-semibold focus:outline-none focus:border-lemon/50"
-            >
-              {equipmentTypes.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
+            <select value={equipmentType} onChange={(e) => handleTypeChange(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white font-semibold focus:outline-none focus:border-lemon/50">
+              {equipmentTypes.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
 
           <div className="mb-4">
             <label className="text-slate text-xs font-semibold mb-1.5 block">Upload Image</label>
-            <MediaUploader
-              buttonLabel="Upload Equipment Image"
-              helperText="Show the current condition of your equipment"
-              onOpenLightbox={setLightboxFile}
-              onChange={setFormMedia}
-            />
+            <MediaUploader buttonLabel="Upload Equipment Image" helperText="Show the current condition of your equipment" onOpenLightbox={setLightboxFile} onChange={setFormMedia} />
           </div>
 
+          {/* [KEEPING ALL YOUR EXISTING CONDITIONAL FORM FIELDS FOR CAR, ELECTRONICS, HOSPITAL, SOLAR, HOME, BUILDING, BIKE EXACTLY AS THEY WERE] */}
           {isCar && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Year of Manufacture</label>
-                <select value={yearOfManufacture} onChange={(e) => setYearOfManufacture(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">
-                  <option value="">Select year</option>
-                  {carYears.map((y) => <option key={y} value={y}>{y}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Model</label>
-                <input type="text" value={modelNumber} onChange={(e) => setModelNumber(e.target.value)} placeholder="e.g. Camry LE" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Chassis Number (VIN)</label>
-                <input type="text" value={chassisNumber} onChange={(e) => setChassisNumber(e.target.value)} placeholder="e.g. 1HGCM82633A004352" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Plate Number</label>
-                <input type="text" value={plateNumber} onChange={(e) => setPlateNumber(e.target.value)} placeholder="e.g. LND-234-KJA" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Current Mileage (km)</label>
-                <input type="number" min={0} value={mileage} onChange={(e) => setMileage(e.target.value)} placeholder="e.g. 82000" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Vehicle Type</label>
-                <select value={vehicleType} onChange={(e) => setVehicleType(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">
-                  {vehicleTypeOptions.map((v) => <option key={v} value={v}>{v}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Color</label>
-                <input type="text" value={color} onChange={(e) => setColor(e.target.value)} placeholder="e.g. Silver" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Current State</label>
-                <select value={currentState} onChange={(e) => setCurrentState(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">
-                  {carStateOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Year of Manufacture</label><select value={yearOfManufacture} onChange={(e) => setYearOfManufacture(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50"><option value="">Select year</option>{carYears.map((y) => <option key={y} value={y}>{y}</option>)}</select></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Model</label><input type="text" value={modelNumber} onChange={(e) => setModelNumber(e.target.value)} placeholder="e.g. Camry LE" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Chassis Number (VIN)</label><input type="text" value={chassisNumber} onChange={(e) => setChassisNumber(e.target.value)} placeholder="e.g. 1HGCM82633A004352" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Plate Number</label><input type="text" value={plateNumber} onChange={(e) => setPlateNumber(e.target.value)} placeholder="e.g. LND-234-KJA" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Current Mileage (km)</label><input type="number" min={0} value={mileage} onChange={(e) => setMileage(e.target.value)} placeholder="e.g. 82000" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Vehicle Type</label><select value={vehicleType} onChange={(e) => setVehicleType(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">{vehicleTypeOptions.map((v) => <option key={v} value={v}>{v}</option>)}</select></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Color</label><input type="text" value={color} onChange={(e) => setColor(e.target.value)} placeholder="e.g. Silver" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Current State</label><select value={currentState} onChange={(e) => setCurrentState(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">{carStateOptions.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
             </div>
           )}
 
           {isElectronics && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Year of Manufacture</label>
-                <select value={yearOfManufacture} onChange={(e) => setYearOfManufacture(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">
-                  <option value="">Select year</option>
-                  {electronicsYears.map((y) => <option key={y} value={y}>{y}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Serial/IMEI Number</label>
-                <input type="text" value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} placeholder="e.g. 356789104561234" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Model</label>
-                <input type="text" value={modelNumber} onChange={(e) => setModelNumber(e.target.value)} placeholder="e.g. iPhone 13 Pro" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Color</label>
-                <input type="text" value={color} onChange={(e) => setColor(e.target.value)} placeholder="e.g. Black" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Current State</label>
-                <select value={currentState} onChange={(e) => setCurrentState(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">
-                  {electronicsStateOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Year of Manufacture</label><select value={yearOfManufacture} onChange={(e) => setYearOfManufacture(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50"><option value="">Select year</option>{electronicsYears.map((y) => <option key={y} value={y}>{y}</option>)}</select></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Serial/IMEI Number</label><input type="text" value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} placeholder="e.g. 356789104561234" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Model</label><input type="text" value={modelNumber} onChange={(e) => setModelNumber(e.target.value)} placeholder="e.g. iPhone 13 Pro" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Color</label><input type="text" value={color} onChange={(e) => setColor(e.target.value)} placeholder="e.g. Black" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div className="sm:col-span-2"><label className="text-slate text-xs font-semibold mb-1.5 block">Current State</label><select value={currentState} onChange={(e) => setCurrentState(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">{electronicsStateOptions.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
             </div>
           )}
 
           {isHospital && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Year of Manufacture</label>
-                <select value={yearOfManufacture} onChange={(e) => setYearOfManufacture(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">
-                  <option value="">Select year</option>
-                  {hospitalYears.map((y) => <option key={y} value={y}>{y}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Serial Number</label>
-                <input type="text" value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} placeholder="e.g. HX-2021-4471" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Model</label>
-                <input type="text" value={modelNumber} onChange={(e) => setModelNumber(e.target.value)} placeholder="e.g. GE Voluson E10" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Equipment Type</label>
-                <select value={subEquipmentType} onChange={(e) => setSubEquipmentType(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">
-                  {hospitalSubTypeOptions.map((h) => <option key={h} value={h}>{h}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Color (if applicable)</label>
-                <input type="text" value={color} onChange={(e) => setColor(e.target.value)} placeholder="e.g. White" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Current State</label>
-                <select value={currentState} onChange={(e) => setCurrentState(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">
-                  {hospitalStateOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Year of Manufacture</label><select value={yearOfManufacture} onChange={(e) => setYearOfManufacture(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50"><option value="">Select year</option>{hospitalYears.map((y) => <option key={y} value={y}>{y}</option>)}</select></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Serial Number</label><input type="text" value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} placeholder="e.g. HX-2021-4471" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Model</label><input type="text" value={modelNumber} onChange={(e) => setModelNumber(e.target.value)} placeholder="e.g. GE Voluson E10" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Equipment Type</label><select value={subEquipmentType} onChange={(e) => setSubEquipmentType(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">{hospitalSubTypeOptions.map((h) => <option key={h} value={h}>{h}</option>)}</select></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Color (if applicable)</label><input type="text" value={color} onChange={(e) => setColor(e.target.value)} placeholder="e.g. White" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Current State</label><select value={currentState} onChange={(e) => setCurrentState(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">{hospitalStateOptions.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
             </div>
           )}
 
           {isSolar && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Year of Manufacture</label>
-                <select value={yearOfManufacture} onChange={(e) => setYearOfManufacture(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">
-                  <option value="">Select year</option>
-                  {solarYears.map((y) => <option key={y} value={y}>{y}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Serial Number</label>
-                <input type="text" value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} placeholder="e.g. SLR-2023-8891" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Model</label>
-                <input type="text" value={modelNumber} onChange={(e) => setModelNumber(e.target.value)} placeholder="e.g. Growatt SPF 5000" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Equipment Type</label>
-                <select value={subEquipmentType} onChange={(e) => setSubEquipmentType(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">
-                  {solarSubTypeOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Capacity/Power Rating</label>
-                <input type="text" value={capacityRating} onChange={(e) => setCapacityRating(e.target.value)} placeholder="e.g. 5KVA, 500W" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Color (if applicable)</label>
-                <input type="text" value={color} onChange={(e) => setColor(e.target.value)} placeholder="e.g. Blue" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Current State</label>
-                <select value={currentState} onChange={(e) => setCurrentState(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">
-                  {solarStateOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Year of Manufacture</label><select value={yearOfManufacture} onChange={(e) => setYearOfManufacture(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50"><option value="">Select year</option>{solarYears.map((y) => <option key={y} value={y}>{y}</option>)}</select></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Serial Number</label><input type="text" value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} placeholder="e.g. SLR-2023-8891" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Model</label><input type="text" value={modelNumber} onChange={(e) => setModelNumber(e.target.value)} placeholder="e.g. Growatt SPF 5000" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Equipment Type</label><select value={subEquipmentType} onChange={(e) => setSubEquipmentType(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">{solarSubTypeOptions.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Capacity/Power Rating</label><input type="text" value={capacityRating} onChange={(e) => setCapacityRating(e.target.value)} placeholder="e.g. 5KVA, 500W" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Color (if applicable)</label><input type="text" value={color} onChange={(e) => setColor(e.target.value)} placeholder="e.g. Blue" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Current State</label><select value={currentState} onChange={(e) => setCurrentState(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">{solarStateOptions.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
             </div>
           )}
 
           {isHomeMaintenance && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <div className="sm:col-span-2">
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Description of Property/Area</label>
-                <textarea value={propertyDescription} onChange={(e) => setPropertyDescription(e.target.value)} rows={2} placeholder="e.g. 3-bedroom bungalow, kitchen and bathroom area" className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50 resize-none" />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Location/Address</label>
-                <input type="text" value={locationAddress} onChange={(e) => setLocationAddress(e.target.value)} placeholder="e.g. 12 Allen Avenue, Ikeja, Lagos" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Type</label>
-                <select value={maintenanceType} onChange={(e) => setMaintenanceType(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">
-                  {maintenanceTypeOptions.map((m) => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Current State</label>
-                <select value={currentState} onChange={(e) => setCurrentState(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">
-                  {homeMaintenanceStateOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
+              <div className="sm:col-span-2"><label className="text-slate text-xs font-semibold mb-1.5 block">Description of Property/Area</label><textarea value={propertyDescription} onChange={(e) => setPropertyDescription(e.target.value)} rows={2} placeholder="e.g. 3-bedroom bungalow, kitchen and bathroom area" className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50 resize-none" /></div>
+              <div className="sm:col-span-2"><label className="text-slate text-xs font-semibold mb-1.5 block">Location/Address</label><input type="text" value={locationAddress} onChange={(e) => setLocationAddress(e.target.value)} placeholder="e.g. 12 Allen Avenue, Ikeja, Lagos" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Type</label><select value={maintenanceType} onChange={(e) => setMaintenanceType(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">{maintenanceTypeOptions.map((m) => <option key={m} value={m}>{m}</option>)}</select></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Current State</label><select value={currentState} onChange={(e) => setCurrentState(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">{homeMaintenanceStateOptions.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
             </div>
           )}
 
           {isBuilding && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Year Built</label>
-                <select value={yearOfManufacture} onChange={(e) => setYearOfManufacture(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">
-                  <option value="">Select year</option>
-                  {buildingYears.map((y) => <option key={y} value={y}>{y}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Building Type</label>
-                <select value={buildingType} onChange={(e) => setBuildingType(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">
-                  {buildingTypeOptions.map((b) => <option key={b} value={b}>{b}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Number of Floors</label>
-                <input type="number" min={0} value={numberOfFloors} onChange={(e) => setNumberOfFloors(e.target.value)} placeholder="e.g. 3" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Total Square Meters</label>
-                <input type="number" min={0} value={totalSquareMeters} onChange={(e) => setTotalSquareMeters(e.target.value)} placeholder="e.g. 250" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Structural Issues</label>
-                <select value={structuralIssues} onChange={(e) => setStructuralIssues(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">
-                  {structuralIssueOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Current State</label>
-                <select value={currentState} onChange={(e) => setCurrentState(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">
-                  {buildingStateOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Year Built</label><select value={yearOfManufacture} onChange={(e) => setYearOfManufacture(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50"><option value="">Select year</option>{buildingYears.map((y) => <option key={y} value={y}>{y}</option>)}</select></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Building Type</label><select value={buildingType} onChange={(e) => setBuildingType(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">{buildingTypeOptions.map((b) => <option key={b} value={b}>{b}</option>)}</select></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Number of Floors</label><input type="number" min={0} value={numberOfFloors} onChange={(e) => setNumberOfFloors(e.target.value)} placeholder="e.g. 3" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Total Square Meters</label><input type="number" min={0} value={totalSquareMeters} onChange={(e) => setTotalSquareMeters(e.target.value)} placeholder="e.g. 250" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Structural Issues</label><select value={structuralIssues} onChange={(e) => setStructuralIssues(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">{structuralIssueOptions.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Current State</label><select value={currentState} onChange={(e) => setCurrentState(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">{buildingStateOptions.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
             </div>
           )}
 
           {isBike && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Year of Manufacture</label>
-                <select value={yearOfManufacture} onChange={(e) => setYearOfManufacture(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">
-                  <option value="">Select year</option>
-                  {bikeYears.map((y) => <option key={y} value={y}>{y}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Brand/Model</label>
-                <input type="text" value={modelNumber} onChange={(e) => setModelNumber(e.target.value)} placeholder="e.g. Bajaj Boxer 150" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Frame Number</label>
-                <input type="text" value={frameNumber} onChange={(e) => setFrameNumber(e.target.value)} placeholder="e.g. MD2A11CY1JCB12345" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Engine Number</label>
-                <input type="text" value={engineNumber} onChange={(e) => setEngineNumber(e.target.value)} placeholder="e.g. JCBE12345" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Bike Type</label>
-                <select value={bikeType} onChange={(e) => setBikeType(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">
-                  {bikeTypeOptions.map((b) => <option key={b} value={b}>{b}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Color</label>
-                <input type="text" value={color} onChange={(e) => setColor(e.target.value)} placeholder="e.g. Red" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Current Mileage (km)</label>
-                <input type="number" min={0} value={mileage} onChange={(e) => setMileage(e.target.value)} placeholder="e.g. 12000" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" />
-              </div>
-              <div>
-                <label className="text-slate text-xs font-semibold mb-1.5 block">Current State</label>
-                <select value={currentState} onChange={(e) => setCurrentState(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">
-                  {bikeStateOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Year of Manufacture</label><select value={yearOfManufacture} onChange={(e) => setYearOfManufacture(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50"><option value="">Select year</option>{bikeYears.map((y) => <option key={y} value={y}>{y}</option>)}</select></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Brand/Model</label><input type="text" value={modelNumber} onChange={(e) => setModelNumber(e.target.value)} placeholder="e.g. Bajaj Boxer 150" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Frame Number</label><input type="text" value={frameNumber} onChange={(e) => setFrameNumber(e.target.value)} placeholder="e.g. MD2A11CY1JCB12345" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Engine Number</label><input type="text" value={engineNumber} onChange={(e) => setEngineNumber(e.target.value)} placeholder="e.g. JCBE12345" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Bike Type</label><select value={bikeType} onChange={(e) => setBikeType(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">{bikeTypeOptions.map((b) => <option key={b} value={b}>{b}</option>)}</select></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Color</label><input type="text" value={color} onChange={(e) => setColor(e.target.value)} placeholder="e.g. Red" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Current Mileage (km)</label><input type="number" min={0} value={mileage} onChange={(e) => setMileage(e.target.value)} placeholder="e.g. 12000" className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50" /></div>
+              <div><label className="text-slate text-xs font-semibold mb-1.5 block">Current State</label><select value={currentState} onChange={(e) => setCurrentState(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50">{bikeStateOptions.map((s) => <option key={s} value={s}>{s}</option>)}</select></div>
             </div>
           )}
 
           <div className="mb-5">
             <label className="text-slate text-xs font-semibold mb-1.5 block">Current Status</label>
-            <textarea
-              value={statusText}
-              onChange={(e) => setStatusText(e.target.value)}
-              rows={3}
-              placeholder="e.g. Toyota Camry 2019, working fine, due for oil change next month"
-              className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50 resize-none"
-            />
+            <textarea value={statusText} onChange={(e) => setStatusText(e.target.value)} rows={3} placeholder="e.g. Toyota Camry 2019, working fine, due for oil change next month" className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm text-white placeholder:text-slate/60 focus:outline-none focus:border-lemon/50 resize-none" />
           </div>
 
-          <button
-            onClick={handleSaveEquipment}
-            className="w-full bg-lemon text-[#0F172A] font-black py-3.5 rounded-full hover:scale-[1.02] hover:shadow-[0_0_25px_rgba(204,255,0,0.5)] transition-all"
-          >
-            Save Equipment
-          </button>
+          <button onClick={handleSaveEquipment} className="w-full bg-lemon text-[#0F172A] font-black py-3.5 rounded-full hover:scale-[1.02] hover:shadow-[0_0_25px_rgba(204,255,0,0.5)] transition-all">Save Equipment</button>
 
           <div className="bg-white/5 border border-white/10 rounded-2xl p-4 mt-5 space-y-1.5">
             <p className="text-slate text-xs">✅ Any year/model equipment can be registered on tpmarket.</p>
@@ -744,24 +541,13 @@ export default function CustomerDashboardTop() {
                 <div key={eq.id} className="bg-white/5 rounded-2xl p-5">
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-white font-bold text-sm">{eq.type}</p>
-                    <button
-                      onClick={() => handleAddAnother(eq.type)}
-                      aria-label={`Add another ${eq.type}`}
-                      className="w-8 h-8 rounded-full bg-lemon/10 text-lemon flex items-center justify-center hover:bg-lemon/20 transition-colors shrink-0"
-                    >
-                      <Plus size={16} />
-                    </button>
+                    <button onClick={() => handleAddAnother(eq.type)} aria-label={`Add another ${eq.type}`} className="w-8 h-8 rounded-full bg-lemon/10 text-lemon flex items-center justify-center hover:bg-lemon/20 transition-colors shrink-0"><Plus size={16} /></button>
                   </div>
-
                   <div className="flex flex-wrap gap-1.5 mb-3">
                     {eq.modelNumber && <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white/10 text-white">Model: {eq.modelNumber}</span>}
                     {eq.color && <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white/10 text-white">Color: {eq.color}</span>}
                     {eq.yearOfManufacture && <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white/10 text-white">Year: {eq.yearOfManufacture}</span>}
-                    {(eq.chassisNumber || eq.serialNumber) && (
-                      <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white/10 text-white">
-                        {eq.chassisNumber ? `VIN: ${eq.chassisNumber}` : `S/N: ${eq.serialNumber}`}
-                      </span>
-                    )}
+                    {(eq.chassisNumber || eq.serialNumber) && <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white/10 text-white">{eq.chassisNumber ? `VIN: ${eq.chassisNumber}` : `S/N: ${eq.serialNumber}`}</span>}
                     {eq.plateNumber && <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white/10 text-white">Plate: {eq.plateNumber}</span>}
                     {eq.mileage && <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white/10 text-white">{eq.mileage} km</span>}
                     {eq.vehicleType && <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white/10 text-white">{eq.vehicleType}</span>}
@@ -773,68 +559,24 @@ export default function CustomerDashboardTop() {
                     {eq.numberOfFloors && <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white/10 text-white">{eq.numberOfFloors} floors</span>}
                     {eq.totalSquareMeters && <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white/10 text-white">{eq.totalSquareMeters} sqm</span>}
                     {eq.structuralIssues && <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-purple/10 text-purple">{eq.structuralIssues}</span>}
-                    {(eq.frameNumber || eq.engineNumber) && (
-                      <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white/10 text-white">
-                        {eq.frameNumber && `Frame: ${eq.frameNumber}`}{eq.frameNumber && eq.engineNumber ? ' · ' : ''}{eq.engineNumber && `Engine: ${eq.engineNumber}`}
-                      </span>
-                    )}
+                    {(eq.frameNumber || eq.engineNumber) && <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white/10 text-white">{eq.frameNumber && `Frame: ${eq.frameNumber}`}{eq.frameNumber && eq.engineNumber ? ' · ' : ''}{eq.engineNumber && `Engine: ${eq.engineNumber}`}</span>}
                     {eq.bikeType && <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white/10 text-white">{eq.bikeType}</span>}
                     {eq.currentState && <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-lemon/10 text-lemon">{eq.currentState}</span>}
                   </div>
-
                   {eq.propertyDescription && <p className="text-slate text-xs mb-1">{eq.propertyDescription}</p>}
                   <p className="text-slate text-xs mb-1">{eq.status}</p>
-                  <p className="text-slate/60 text-[10px] mb-4">
-                    Saved {new Date(eq.savedAt).toLocaleDateString()}
-                    {eq.mediaCount > 0 && ` · 📷 ${eq.mediaCount} photo${eq.mediaCount === 1 ? '' : 's'}`}
-                  </p>
-
+                  <p className="text-slate/60 text-[10px] mb-4">Saved {new Date(eq.savedAt).toLocaleDateString()}{eq.mediaCount > 0 && ` · 📷 ${eq.mediaCount} photo${eq.mediaCount === 1 ? '' : 's'}`}</p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
-                    <button
-                      onClick={() => updateEquipment(eq.id, { forSale: !eq.forSale })}
-                      className="flex items-center justify-center gap-1.5 bg-[#2563EB] text-white text-xs font-bold px-3 py-2.5 rounded-full hover:brightness-110 transition-all"
-                    >
-                      🛒 {eq.forSale ? 'Listed ✓' : 'Publish for Sale'}
-                    </button>
-                    <button
-                      onClick={() => updateEquipment(eq.id, { stolen: !eq.stolen })}
-                      className="flex items-center justify-center gap-1.5 bg-red-600 text-white text-xs font-bold px-3 py-2.5 rounded-full hover:brightness-110 transition-all"
-                    >
-                      🚨 {eq.stolen ? 'Reported ✓' : 'Report Stolen'}
-                    </button>
-                    <Link
-                      href="/customer/maintenance-insurance"
-                      className="text-center flex items-center justify-center gap-1.5 bg-lemon text-[#0F172A] text-xs font-bold px-3 py-2.5 rounded-full hover:brightness-110 transition-all"
-                    >
-                      🛡️ 3-Year Maintenance Insurance
-                    </Link>
-                    <Link
-                      href="/marketplace"
-                      className="text-center flex items-center justify-center gap-1.5 bg-purple text-white text-xs font-bold px-3 py-2.5 rounded-full hover:brightness-110 transition-all"
-                    >
-                      🔍 View Nearby Specialists
-                    </Link>
-                    <button
-                      onClick={() => updateEquipment(eq.id, { showHistory: !eq.showHistory })}
-                      className="flex items-center justify-center gap-1.5 border-2 border-white/30 text-white text-xs font-bold px-3 py-2.5 rounded-full hover:bg-white/10 transition-colors"
-                    >
-                      📋 Maintenance History
-                    </button>
-                    <button
-                      onClick={() => handleDeleteEquipment(eq.id)}
-                      className="flex items-center justify-center gap-1.5 border-2 border-slate text-slate text-xs font-bold px-3 py-2.5 rounded-full hover:bg-white/5 hover:text-white hover:border-white/40 transition-colors"
-                    >
-                      🗑️ Delete Equipment
-                    </button>
+                    <button onClick={() => updateEquipment(eq.id, { forSale: !eq.forSale })} className="flex items-center justify-center gap-1.5 bg-[#2563EB] text-white text-xs font-bold px-3 py-2.5 rounded-full hover:brightness-110 transition-all">🛒 {eq.forSale ? 'Listed ✓' : 'Publish for Sale'}</button>
+                    <button onClick={() => updateEquipment(eq.id, { stolen: !eq.stolen })} className="flex items-center justify-center gap-1.5 bg-red-600 text-white text-xs font-bold px-3 py-2.5 rounded-full hover:brightness-110 transition-all">🚨 {eq.stolen ? 'Reported ✓' : 'Report Stolen'}</button>
+                    <Link href="/customer/maintenance-insurance" className="text-center flex items-center justify-center gap-1.5 bg-lemon text-[#0F172A] text-xs font-bold px-3 py-2.5 rounded-full hover:brightness-110 transition-all">🛡️ 3-Year Maintenance Insurance</Link>
+                    <Link href="/marketplace" className="text-center flex items-center justify-center gap-1.5 bg-purple text-white text-xs font-bold px-3 py-2.5 rounded-full hover:brightness-110 transition-all">🔍 View Nearby Specialists</Link>
+                    <button onClick={() => updateEquipment(eq.id, { showHistory: !eq.showHistory })} className="flex items-center justify-center gap-1.5 border-2 border-white/30 text-white text-xs font-bold px-3 py-2.5 rounded-full hover:bg-white/10 transition-colors">📋 Maintenance History</button>
+                    <button onClick={() => handleDeleteEquipment(eq.id)} className="flex items-center justify-center gap-1.5 border-2 border-slate text-slate text-xs font-bold px-3 py-2.5 rounded-full hover:bg-white/5 hover:text-white hover:border-white/40 transition-colors">🗑️ Delete Equipment</button>
                   </div>
-
                   {eq.forSale && <p className="text-lemon text-xs font-semibold">✅ Listed on the Marketplace (demo)</p>}
                   {eq.stolen && <p className="text-red-400 text-xs font-semibold">🚨 Reported stolen — network notified (demo)</p>}
-                  {eq.showHistory && (
-                    <div className="bg-[#0F172A] border border-white/10 rounded-xl p-3 mt-2">
-                      <p className="text-slate text-xs">No maintenance history yet for this item.</p>
-                    </div>
-                  )}
+                  {eq.showHistory && <div className="bg-[#0F172A] border border-white/10 rounded-xl p-3 mt-2"><p className="text-slate text-xs">No maintenance history yet for this item.</p></div>}
                 </div>
               ))}
             </div>
@@ -843,11 +585,7 @@ export default function CustomerDashboardTop() {
 
         {/* SECTION 4: REFERRALS & TP COINS */}
         <div className="bg-darkcard rounded-3xl p-6 sm:p-8 border border-white/10">
-          <h2 className="flex items-center gap-2 text-white font-black text-lg mb-5">
-            <Gift className="text-purple" size={20} /> Referrals & TP Coins
-          </h2>
-
-          {/* REFERRAL CODE BOX */}
+          <h2 className="flex items-center gap-2 text-white font-black text-lg mb-5"><Gift className="text-purple" size={20} /> Referrals & TP Coins</h2>
           <div className="bg-white/5 border border-white/10 rounded-2xl p-5 mb-5">
             <h3 className="text-white font-black text-sm mb-3">Invite Friends & Earn</h3>
             <div className="bg-[#0F172A] border border-lemon/30 rounded-2xl py-5 text-center mb-4">
@@ -855,27 +593,11 @@ export default function CustomerDashboardTop() {
               <p className="text-lemon font-black text-3xl sm:text-4xl tracking-wide">{referralCode}</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-              <button
-                onClick={handleCopyReferralLink}
-                className="flex items-center justify-center gap-2 bg-lemon text-[#0F172A] font-black py-3 rounded-full hover:scale-[1.02] hover:shadow-[0_0_25px_rgba(204,255,0,0.5)] transition-all"
-              >
-                {copiedLink ? <Check size={16} /> : <Copy size={16} />} {copiedLink ? 'Copied!' : 'Copy Code'}
-              </button>
-              <a
-                href={`https://wa.me/?text=${whatsappText}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 bg-[#25D366] text-white font-black py-3 rounded-full hover:scale-[1.02] transition-all"
-              >
-                <MessageCircle size={16} /> Share via WhatsApp
-              </a>
+              <button onClick={handleCopyReferralLink} className="flex items-center justify-center gap-2 bg-lemon text-[#0F172A] font-black py-3 rounded-full hover:scale-[1.02] hover:shadow-[0_0_25px_rgba(204,255,0,0.5)] transition-all">{copiedLink ? <Check size={16} /> : <Copy size={16} />} {copiedLink ? 'Copied!' : 'Copy Code'}</button>
+              <a href={`https://wa.me/?text=${whatsappText}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 bg-[#25D366] text-white font-black py-3 rounded-full hover:scale-[1.02] transition-all"><MessageCircle size={16} /> Share via WhatsApp</a>
             </div>
-            <p className="text-slate text-xs leading-relaxed">
-              When a friend registers with your code and makes a purchase, you both earn rewards!
-            </p>
+            <p className="text-slate text-xs leading-relaxed">When a friend registers with your code and makes a purchase, you both earn rewards!</p>
           </div>
-
-          {/* TP COINS & WALLET */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
             <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
               <p className="text-slate text-[10px] font-bold uppercase tracking-wide mb-1">Total TP Coins</p>
@@ -884,22 +606,16 @@ export default function CustomerDashboardTop() {
             <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
               <p className="text-slate text-[10px] font-bold uppercase tracking-wide mb-1">Wallet Balance</p>
               <p className="text-white font-black text-3xl mb-1">₦{walletBalance.toLocaleString()}.00</p>
-              <p className="text-slate text-[10px]">
-                Withdrawable balance: ₦{withdrawableBalance.toLocaleString()}.00 | App Credit: ₦{appCredit.toLocaleString()}.00
-              </p>
+              <p className="text-slate text-[10px]">Withdrawable balance: ₦{withdrawableBalance.toLocaleString()}.00 | App Credit: ₦{appCredit.toLocaleString()}.00</p>
             </div>
           </div>
-
-          {/* PROGRESS BARS */}
           <div className="space-y-4">
             <div className="bg-white/5 rounded-2xl p-4">
               <div className="flex items-center justify-between text-xs mb-2">
                 <span className="text-slate font-semibold">Unlock {REFERRAL_GOAL_1_REWARD}</span>
                 <span className="text-white font-bold">{tpCoins.toLocaleString()} / {REFERRAL_GOAL_1.toLocaleString()}</span>
               </div>
-              <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full bg-lemon rounded-full" style={{ width: `${progressPct1}%` }} />
-              </div>
+              <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden"><div className="h-full bg-lemon rounded-full" style={{ width: `${progressPct1}%` }} /></div>
               {tpCoins >= REFERRAL_GOAL_1 && <p className="text-lemon text-xs font-bold mt-2">🎉 Goal reached!</p>}
             </div>
             <div className="bg-white/5 rounded-2xl p-4">
@@ -907,9 +623,7 @@ export default function CustomerDashboardTop() {
                 <span className="text-slate font-semibold">Qualify for {REFERRAL_GOAL_2_REWARD}</span>
                 <span className="text-white font-bold">{tpCoins.toLocaleString()} / {REFERRAL_GOAL_2.toLocaleString()}</span>
               </div>
-              <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full bg-purple rounded-full" style={{ width: `${progressPct2}%` }} />
-              </div>
+              <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden"><div className="h-full bg-purple rounded-full" style={{ width: `${progressPct2}%` }} /></div>
               {tpCoins >= REFERRAL_GOAL_2 && <p className="text-purple text-xs font-bold mt-2">🎉 Goal reached!</p>}
             </div>
           </div>
@@ -921,24 +635,10 @@ export default function CustomerDashboardTop() {
       {showUpsellModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#0F172A]/70 backdrop-blur-sm px-6">
           <div className="w-full max-w-sm bg-darkcard rounded-3xl p-7 border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)] text-center">
-            <div className="w-14 h-14 rounded-full bg-lemon/10 text-lemon flex items-center justify-center mx-auto mb-4">
-              <Shield size={26} />
-            </div>
-            <p className="text-white font-bold text-base leading-relaxed mb-6">
-              To activate Secured Maintenance for 15 equipment click here to pay ₦10,000.00.
-            </p>
-            <Link
-              href="/customer/payment/secure-maintenance"
-              className="block w-full bg-lemon text-[#0F172A] font-black py-3.5 rounded-full mb-3 hover:scale-[1.02] hover:shadow-[0_0_25px_rgba(204,255,0,0.5)] transition-all"
-            >
-              Pay ₦10,000.00 & Activate
-            </Link>
-            <button
-              onClick={() => setShowUpsellModal(false)}
-              className="w-full text-slate text-xs font-semibold py-2 hover:text-white transition-colors"
-            >
-              Maybe later
-            </button>
+            <div className="w-14 h-14 rounded-full bg-lemon/10 text-lemon flex items-center justify-center mx-auto mb-4"><Shield size={26} /></div>
+            <p className="text-white font-bold text-base leading-relaxed mb-6">To activate Secured Maintenance for 15 equipment click here to pay ₦10,000.00.</p>
+            <Link href="/customer/payment/secure-maintenance" className="block w-full bg-lemon text-[#0F172A] font-black py-3.5 rounded-full mb-3 hover:scale-[1.02] hover:shadow-[0_0_25px_rgba(204,255,0,0.5)] transition-all">Pay ₦10,000.00 & Activate</Link>
+            <button onClick={() => setShowUpsellModal(false)} className="w-full text-slate text-xs font-semibold py-2 hover:text-white transition-colors">Maybe later</button>
           </div>
         </div>
       )}

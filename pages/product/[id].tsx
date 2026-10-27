@@ -117,19 +117,26 @@ export default function ProductDetailPage() {
     }
   };
 
-  // UPDATED: Save negotiation with customer name and location
+  // UPDATED: Fetch customer's actual location from profile before saving
   const submitNegotiation = async () => {
     if (!offerPrice) return alert('Please enter a price');
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return alert('Please log in to negotiate');
 
+      // Get customer's actual location from their profile
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('state, country')
+        .eq('id', user.id)
+        .single();
+
       const { error } = await supabase.from('quote_requests').insert({
         product_id: product.id,
         customer_id: user.id,
         seller_id: product.seller_id,
-        customer_name: user.user_metadata?.full_name || user.email, // Captures customer name
-        customer_location: `${product.state}, ${product.country}`, // Uses product location as default, can be updated to user profile location later
+        customer_name: user.user_metadata?.full_name || user.email,
+        customer_location: `${profileData?.state || 'Nigeria'}, ${profileData?.country || 'Nigeria'}`, // NOW USES ACTUAL CUSTOMER LOCATION
         description: `Negotiation Offer: ₦${parseFloat(offerPrice).toLocaleString()} (Original: ₦${product.price.toLocaleString()})`,
         request_type: 'negotiate',
         status: 'pending'
@@ -146,19 +153,26 @@ export default function ProductDetailPage() {
     }
   };
 
-  // UPDATED: Handle quote request with customer name and location
+  // UPDATED: Fetch customer's actual location from profile before saving
   const submitQuoteRequest = async () => {
     if (!quoteMessage.trim()) return alert('Please enter your request details');
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return alert('Please log in to send a quote request');
 
+      // Get customer's actual location from their profile
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('state, country')
+        .eq('id', user.id)
+        .single();
+
       const { error } = await supabase.from('quote_requests').insert({
         product_id: product.id,
         customer_id: user.id,
         seller_id: product.seller_id,
-        customer_name: user.user_metadata?.full_name || user.email, // Captures customer name
-        customer_location: `${product.state}, ${product.country}`, // Uses product location as default
+        customer_name: user.user_metadata?.full_name || user.email,
+        customer_location: `${profileData?.state || 'Nigeria'}, ${profileData?.country || 'Nigeria'}`, // NOW USES ACTUAL CUSTOMER LOCATION
         description: quoteMessage,
         request_type: 'quote',
         status: 'pending'
