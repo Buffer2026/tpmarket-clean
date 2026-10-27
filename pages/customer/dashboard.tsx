@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
-import { Search, Shield, Plus, MessageCircle, ChevronDown, ChevronUp, Lock, Briefcase, Wallet, Upload, X, Image as ImageIcon, Package } from 'lucide-react';
+import { Search, Shield, Plus, MessageCircle, ChevronDown, ChevronUp, Lock, Briefcase, Wallet, Upload, X, Image as ImageIcon, Package, CheckCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import BottomNav from '../../components/BottomNav';
 
@@ -10,7 +10,10 @@ export default function UnifiedDashboard() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [isWecanCertified, setIsWecanCertified] = useState(false);
-  const [requests, setRequests] = useState<any[]>([]);
+  
+  // TWO separate lists: one for when you buy, one for when you sell
+  const [myRequests, setMyRequests] = useState<any[]>([]); 
+  const [incomingRequests, setIncomingRequests] = useState<any[]>([]); 
   const [myListings, setMyListings] = useState<any[]>([]);
   
   // Accordion State
@@ -39,13 +42,28 @@ export default function UnifiedDashboard() {
       if (user) {
         setUser(user);
         
+        // 1. Check Certification
         const { data: profile } = await supabase.from('profiles').select('wecan_certified, role').eq('id', user.id).single();
         const isCertified = profile?.wecan_certified === true || user.user_metadata?.role === 'provider';
         setIsWecanCertified(isCertified);
 
-        const { data: custRequests } = await supabase.from('quote_requests').select('*').eq('customer_id', user.id).order('created_at', { ascending: false });
-        if (custRequests) setRequests(custRequests);
+        // 2. Fetch Requests WHERE I AM THE CUSTOMER (Buying)
+        const { data: custRequests } = await supabase
+          .from('quote_requests')
+          .select('*')
+          .eq('customer_id', user.id)
+          .order('created_at', { ascending: false });
+        if (custRequests) setMyRequests(custRequests);
 
+        // 3. Fetch Requests WHERE I AM THE PROVIDER (Selling) - THE MISSING LINK!
+        const { data: providerRequests } = await supabase
+          .from('quote_requests')
+          .select('*')
+          .eq('seller_id', user.id)
+          .order('created_at', { ascending: false });
+        if (providerRequests) setIncomingRequests(providerRequests);
+
+        // 4. Fetch My Listings
         if (isCertified) {
           const { data: listings } = await supabase.from('products').select('*').eq('seller_id', user.id).order('created_at', { ascending: false });
           if (listings) setMyListings(listings);
@@ -127,7 +145,18 @@ export default function UnifiedDashboard() {
     }
   }
 
-  const SectionHeader = ({ id, title, icon: Icon }: any) => (
+  // Handle Provider responding to a request
+  async function handleProviderResponse(reqId: string, status: string) {
+    const { error } = await supabase.from('quote_requests').update({ status }).eq('id', reqId);
+    if (!error) {
+      alert(`Request ${status}!`);
+      // Refresh incoming requests
+      const { data } = await supabase.from('quote_requests').select('*').eq('seller_id', user.id);
+      if (data) setIncomingRequests(data);
+    }
+  }
+
+  const SectionHeader = ({ id, title, icon: Icon, count }: any) => (
     <button 
       onClick={() => toggleSection(id)}
       className={`w-full flex items-center justify-between p-4 rounded-lg border-2 transition-all ${
@@ -143,6 +172,9 @@ export default function UnifiedDashboard() {
           <Icon size={20} />
         </div>
         <h3 className="text-white font-black text-base">{title}</h3>
+        {count > 0 && (
+          <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">{count}</span>
+        )}
       </div>
       {openSection === id ? <ChevronUp className="text-[#ccff00]" /> : <ChevronDown className="text-slate-400" />}
     </button>
@@ -167,8 +199,8 @@ export default function UnifiedDashboard() {
 
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-3">
         
-        {/* SECTION 1: PUBLISH A SERVICE (Moved to top for Providers) */}
-        <SectionHeader id="publish" title="Publish a Service / Provider Hub" icon={Briefcase} />
+        {/* SECTION 1: PROVIDER HUB (Incoming Requests + Publishing) */}
+        <SectionHeader id="publish" title="Provider Hub & Incoming Requests" icon={Briefcase} count={incomingRequests.filter(r => r.status === 'pending').length} />
         {openSection === 'publish' && (
           <div className="bg-[#1E293B] rounded-lg p-5 border border-white/10 mb-4">
             {!isWecanCertified ? (
@@ -185,86 +217,132 @@ export default function UnifiedDashboard() {
                 </button>
               </div>
             ) : (
-              <div>
-                {publishMessage && (
-                  <div className={`p-3 rounded-lg mb-4 text-center font-bold text-sm ${publishMessage.includes('✅') ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
-                    {publishMessage}
+              <div className="space-y-6">
+                
+                {/* INCOMING REQUESTS (THE FIX) */}
+                {incomingRequests.length > 0 && (
+                  <div>
+                    <h4 className="text-white font-bold text-sm mb-3 flex items-center gap-2">
+                      <MessageCircle className="text-[#ccff00]" size={16} /> Incoming Customer Requests ({incomingRequests.length})
+                    </h4>
+                    <div className="space-y-3">
+                      {incomingRequests.map((req: any) => (
+                        <div key={req.id} className="bg-[#0F172A] p-4 rounded-lg border border-white/10">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <p className="text-white font-bold text-sm">{req.customer_name || 'Customer'}</p>
+                              <p className="text-slate-400 text-[10px]">📍 {req.customer_location || 'Nigeria'}</p>
+                            </div>
+                            <span className={`text-[10px] font-black px-2 py-1 rounded-full ${
+                              req.status === 'pending' ? 'bg-yellow-500 text-[#0F172A]' : 'bg-[#ccff00] text-[#0F172A]'
+                            }`}>
+                              {req.status?.toUpperCase()}
+                            </span>
+                          </div>
+                          <p className="text-slate-300 text-xs mb-3 italic border-l-2 border-[#ccff00] pl-3">"{req.description}"</p>
+                          
+                          {req.status === 'pending' && (
+                            <div className="flex gap-2">
+                              <button onClick={() => handleProviderResponse(req.id, 'quoted')} className="flex-1 bg-[#ccff00] text-[#0F172A] text-xs font-black py-2 rounded-lg hover:scale-[1.02] transition-all">
+                                Send Quote
+                              </button>
+                              <button onClick={() => handleProviderResponse(req.id, 'declined')} className="flex-1 bg-red-500/20 text-red-400 text-xs font-bold py-2 rounded-lg hover:bg-red-500/30 transition-all">
+                                Decline
+                              </button>
+                            </div>
+                          )}
+                          {req.status === 'quoted' && (
+                            <p className="text-center text-xs text-[#ccff00] font-bold bg-[#ccff00]/10 py-2 rounded-lg">✅ Quote Sent. Waiting for customer.</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
-                {!showPublishForm ? (
-                  <button onClick={() => setShowPublishForm(true)} className="w-full flex items-center justify-center gap-2 bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-xl hover:scale-[1.02] transition-all">
-                    <Plus size={20} /> Publish New Service/Product
-                  </button>
-                ) : (
-                  <form onSubmit={handlePublish} className="space-y-4">
-                    <input required value={pName} onChange={e => setPName(e.target.value)} placeholder="Name (e.g. iPhone 15 Pro or AC Repair)" className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-slate-500 focus:border-[#ccff00] focus:outline-none" />
-                    <input required type="number" value={pPrice} onChange={e => setPPrice(e.target.value)} placeholder="Price in Naira" className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-slate-500 focus:border-[#ccff00] focus:outline-none" />
-                    <textarea required value={pDesc} onChange={e => setPDesc(e.target.value)} placeholder="Description..." className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-slate-500 focus:border-[#ccff00] focus:outline-none h-24" />
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <select value={pCategory} onChange={(e) => setPCategory(e.target.value)} className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none">
-                        <option>Mechanics</option><option>Tailors & Fashion</option><option>Electricians</option><option>Home Services</option><option>Car Spare Parts</option><option>Electronics</option>
-                      </select>
-                      <select value={pType} onChange={(e) => setPType(e.target.value)} className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none">
-                        <option value="Book">Book a Service</option>
-                        <option value="Buy">Sell a Product</option>
-                      </select>
+                {/* PUBLISH FORM */}
+                <div className="border-t border-white/10 pt-6">
+                  {publishMessage && (
+                    <div className={`p-3 rounded-lg mb-4 text-center font-bold text-sm ${publishMessage.includes('✅') ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
+                      {publishMessage}
                     </div>
+                  )}
 
-                    {pType === 'Buy' && (
-                      <div className="bg-[#0F172A] p-4 rounded-xl border border-[#ccff00]/30 space-y-4">
-                        <h3 className="text-sm font-bold text-[#ccff00] uppercase flex items-center gap-2"><Package size={16} /> Product Specific Details</h3>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="text-xs font-bold text-slate-400 mb-1 block">Condition</label>
-                            <select value={pCondition} onChange={(e) => setPCondition(e.target.value)} className="w-full bg-[#1E293B] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none">
-                              <option value="New">Brand New</option><option value="Used">Used</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="text-xs font-bold text-slate-400 mb-1 block">Year Manufactured</label>
-                            <input type="number" value={pYear} onChange={(e) => setPYear(e.target.value)} placeholder="e.g. 2023" className="w-full bg-[#1E293B] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="text-xs font-bold text-slate-400 mb-1 block">Model Number / Name</label>
-                          <input type="text" value={pModelNo} onChange={(e) => setPModelNo(e.target.value)} placeholder="e.g. A2848, Galaxy S24" className="w-full bg-[#1E293B] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-400 uppercase">Upload Images (Max 8)</label>
-                      <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-white/20 rounded-xl p-6 text-center cursor-pointer hover:border-[#ccff00]/50 transition-all bg-[#0F172A]">
-                        <Upload className="mx-auto text-slate-400 mb-2" size={24} />
-                        <p className="text-sm text-slate-400">Click to select images</p>
-                        <input type="file" ref={fileInputRef} multiple accept="image/*" onChange={handleFileChange} className="hidden" />
+                  {!showPublishForm ? (
+                    <button onClick={() => setShowPublishForm(true)} className="w-full flex items-center justify-center gap-2 bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-xl hover:scale-[1.02] transition-all">
+                      <Plus size={20} /> Publish New Service/Product
+                    </button>
+                  ) : (
+                    <form onSubmit={handlePublish} className="space-y-4">
+                      <input required value={pName} onChange={e => setPName(e.target.value)} placeholder="Name (e.g. iPhone 15 Pro or AC Repair)" className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-slate-500 focus:border-[#ccff00] focus:outline-none" />
+                      <input required type="number" value={pPrice} onChange={e => setPPrice(e.target.value)} placeholder="Price in Naira" className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-slate-500 focus:border-[#ccff00] focus:outline-none" />
+                      <textarea required value={pDesc} onChange={e => setPDesc(e.target.value)} placeholder="Description..." className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white placeholder:text-slate-500 focus:border-[#ccff00] focus:outline-none h-24" />
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <select value={pCategory} onChange={(e) => setPCategory(e.target.value)} className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none">
+                          <option>Mechanics</option><option>Tailors & Fashion</option><option>Electricians</option><option>Home Services</option><option>Car Spare Parts</option><option>Electronics</option>
+                        </select>
+                        <select value={pType} onChange={(e) => setPType(e.target.value)} className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none">
+                          <option value="Book">Book a Service</option>
+                          <option value="Buy">Sell a Product</option>
+                        </select>
                       </div>
 
-                      {previewUrls.length > 0 && (
-                        <div className="grid grid-cols-4 gap-2 mt-2">
-                          {previewUrls.map((url, index) => (
-                            <div key={index} className="relative aspect-square rounded-lg overflow-hidden border border-white/10">
-                              <img src={url} alt={`Preview ${index}`} className="w-full h-full object-cover" />
-                              <button type="button" onClick={() => removeImage(index)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"><X size={12} /></button>
+                      {pType === 'Buy' && (
+                        <div className="bg-[#0F172A] p-4 rounded-xl border border-[#ccff00]/30 space-y-4">
+                          <h3 className="text-sm font-bold text-[#ccff00] uppercase flex items-center gap-2"><Package size={16} /> Product Specific Details</h3>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-xs font-bold text-slate-400 mb-1 block">Condition</label>
+                              <select value={pCondition} onChange={(e) => setPCondition(e.target.value)} className="w-full bg-[#1E293B] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none">
+                                <option value="New">Brand New</option><option value="Used">Used</option>
+                              </select>
                             </div>
-                          ))}
+                            <div>
+                              <label className="text-xs font-bold text-slate-400 mb-1 block">Year Manufactured</label>
+                              <input type="number" value={pYear} onChange={(e) => setPYear(e.target.value)} placeholder="e.g. 2023" className="w-full bg-[#1E293B] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-xs font-bold text-slate-400 mb-1 block">Model Number / Name</label>
+                            <input type="text" value={pModelNo} onChange={(e) => setPModelNo(e.target.value)} placeholder="e.g. A2848, Galaxy S24" className="w-full bg-[#1E293B] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
+                          </div>
                         </div>
                       )}
-                    </div>
 
-                    <div className="flex gap-3 pt-2">
-                      <button type="submit" disabled={publishLoading} className="flex-1 bg-[#ccff00] text-[#0F172A] font-black py-3 rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50">
-                        {publishLoading ? 'Publishing...' : 'Publish to Marketplace'}
-                      </button>
-                      <button type="button" onClick={() => setShowPublishForm(false)} className="flex-1 bg-[#0F172A] border border-white/10 text-white font-bold py-3 rounded-xl hover:bg-white/5 transition-all">Cancel</button>
-                    </div>
-                  </form>
-                )}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-400 uppercase">Upload Images (Max 8)</label>
+                        <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-white/20 rounded-xl p-6 text-center cursor-pointer hover:border-[#ccff00]/50 transition-all bg-[#0F172A]">
+                          <Upload className="mx-auto text-slate-400 mb-2" size={24} />
+                          <p className="text-sm text-slate-400">Click to select images</p>
+                          <input type="file" ref={fileInputRef} multiple accept="image/*" onChange={handleFileChange} className="hidden" />
+                        </div>
+
+                        {previewUrls.length > 0 && (
+                          <div className="grid grid-cols-4 gap-2 mt-2">
+                            {previewUrls.map((url, index) => (
+                              <div key={index} className="relative aspect-square rounded-lg overflow-hidden border border-white/10">
+                                <img src={url} alt={`Preview ${index}`} className="w-full h-full object-cover" />
+                                <button type="button" onClick={() => removeImage(index)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"><X size={12} /></button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex gap-3 pt-2">
+                        <button type="submit" disabled={publishLoading} className="flex-1 bg-[#ccff00] text-[#0F172A] font-black py-3 rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50">
+                          {publishLoading ? 'Publishing...' : 'Publish to Marketplace'}
+                        </button>
+                        <button type="button" onClick={() => setShowPublishForm(false)} className="flex-1 bg-[#0F172A] border border-white/10 text-white font-bold py-3 rounded-xl hover:bg-white/5 transition-all">Cancel</button>
+                      </div>
+                    </form>
+                  )}
+                </div>
                 
+                {/* ACTIVE LISTINGS */}
                 {myListings.length > 0 && (
-                  <div className="mt-8">
+                  <div className="border-t border-white/10 pt-6">
                     <h4 className="text-white font-bold text-sm mb-3 flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-[#ccff00]"></div> My Active Listings ({myListings.length})
                     </h4>
@@ -296,17 +374,17 @@ export default function UnifiedDashboard() {
           </div>
         )}
 
-        {/* SECTION 2: MY REQUESTS */}
-        <SectionHeader id="requests" title="My Requests & Quotations" icon={MessageCircle} />
+        {/* SECTION 2: MY REQUESTS (CUSTOMER VIEW) */}
+        <SectionHeader id="requests" title="My Requests & Quotations" icon={MessageCircle} count={myRequests.length} />
         {openSection === 'requests' && (
           <div className="bg-[#1E293B] rounded-lg p-5 border border-white/10 mb-4 space-y-4">
-            {requests.length === 0 ? (
+            {myRequests.length === 0 ? (
               <p className="text-slate-400 text-center py-4 text-sm">No active requests. <Link href="/marketplace" className="text-[#ccff00] font-bold underline">Browse Marketplace</Link></p>
             ) : (
-              requests.map((req: any) => (
+              myRequests.map((req: any) => (
                 <div key={req.id} className="bg-[#0F172A] p-4 rounded-lg border border-white/10">
                   <div className="flex justify-between mb-2">
-                    <span className="text-white font-bold text-sm">{req.request_type === 'negotiate' ? '💰 Negotiation' : ' Quote Request'}</span>
+                    <span className="text-white font-bold text-sm">{req.request_type === 'negotiate' ? '💰 Negotiation' : '📋 Quote Request'}</span>
                     <span className={`text-[10px] font-black px-2 py-1 rounded-full ${
                       req.status === 'quoted' ? 'bg-[#ccff00] text-[#0F172A]' : 'bg-yellow-500 text-[#0F172A]'
                     }`}>
@@ -354,7 +432,7 @@ export default function UnifiedDashboard() {
               </div>
             </div>
             <div className="bg-[#0F172A] p-4 rounded-lg border border-[#ccff00]">
-              <p className="text-[#ccff00] font-bold text-sm mb-2"> Referral Program</p>
+              <p className="text-[#ccff00] font-bold text-sm mb-2">🎁 Referral Program</p>
               <p className="text-slate-400 text-xs">Invite friends and earn rewards!</p>
             </div>
           </div>
