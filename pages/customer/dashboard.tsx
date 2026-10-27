@@ -3,23 +3,23 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
 import { Search, Coins, Wrench, Clock, AlertTriangle, Shield, Plus, Users, Copy, Check, MessageCircle, Gift, Download } from 'lucide-react';
-import { supabase } from '../../lib/supabase'; // ADDED: Supabase import for fetching requests
+import { supabase } from '../../lib/supabase'; // Make sure this is imported!
 import PageShell from '../../components/PageShell';
 import LandingNavbar from '../../components/LandingNavbar';
 import MediaUploader, { MediaFile } from '../../components/MediaUploader';
 import MediaLightbox from '../../components/MediaLightbox';
 import StatCard from '../../components/StatCard';
 
-const customerName = 'Amara';
+// REMOVED HARDCODED NAME. We will fetch the real name from Supabase.
 const tpCoins = 0;
 const walletBalance = 0;
 const withdrawableBalance = 0;
 const appCredit = 0;
 const pitCrewCount = 4;
-const referralCode = 'AMARA123';
+const referralCode = 'AMARA123'; // You can make this dynamic later based on user ID
 const referralLink = `tpmarket.com/ref/${referralCode}`;
 const REFERRAL_GOAL_1 = 500;
-const REFERRAL_GOAL_1_REWARD = '₦150,000 Credit Purchase';
+const REFERRAL_GOAL_1_REWARD = '150,000 Credit Purchase';
 const REFERRAL_GOAL_2 = 10000;
 const REFERRAL_GOAL_2_REWARD = '₦5,000,000 Annual Reward';
 
@@ -115,7 +115,8 @@ export default function CustomerDashboardTop() {
   const [daysLeft, setDaysLeft] = useState<number | null>(null);
   const [complaintFiled, setComplaintFiled] = useState(false);
 
-  // NEW: State for Quote Requests
+  // NEW: State for Real User Profile
+  const [userProfile, setUserProfile] = useState<any>(null);
   const [requests, setRequests] = useState<any[]>([]);
 
   const [equipmentType, setEquipmentType] = useState(equipmentTypes[0]);
@@ -166,6 +167,33 @@ export default function CustomerDashboardTop() {
   const progressPct1 = Math.min(100, Math.round((tpCoins / REFERRAL_GOAL_1) * 100));
   const progressPct2 = Math.min(100, Math.round((tpCoins / REFERRAL_GOAL_2) * 100));
 
+  // NEW: Fetch Real User Profile and Requests on Load
+  useEffect(() => {
+    async function fetchUserData() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // Fetch Profile
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('full_name, email, avatar_url, state, country')
+          .eq('id', user.id)
+          .single();
+        
+        if (profileData) setUserProfile(profileData);
+
+        // Fetch Requests
+        const { data: requestData } = await supabase
+          .from('quote_requests')
+          .select('*')
+          .eq('customer_id', user.id)
+          .order('created_at', { ascending: false });
+        
+        if (requestData) setRequests(requestData);
+      }
+    }
+    fetchUserData();
+  }, []);
+
   useEffect(() => {
     setEquipmentList(loadStoredEquipment());
     setEquipmentLoaded(true);
@@ -176,23 +204,6 @@ export default function CustomerDashboardTop() {
     persistEquipment(equipmentList);
   }, [equipmentList, equipmentLoaded]);
 
-  // NEW: Fetch customer's quote requests
-  useEffect(() => {
-    async function fetchRequests() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase
-          .from('quote_requests')
-          .select('*')
-          .eq('customer_id', user.id)
-          .order('created_at', { ascending: false });
-        if (data) setRequests(data);
-      }
-    }
-    fetchRequests();
-  }, []);
-
-  // NEW: Handle Accepting a Quote
   async function handleAcceptQuote(requestId: string) {
     const { error } = await supabase
       .from('quote_requests')
@@ -201,11 +212,9 @@ export default function CustomerDashboardTop() {
     if (!error) {
       alert('✅ Quote accepted! Proceeding to payment...');
       setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'accepted_by_customer' } : r));
-      // router.push(`/customer/payment/${requestId}`); // Uncomment when payment page is ready
     }
   }
 
-  // NEW: Handle Negotiating a Quote
   async function handleNegotiateQuote(requestId: string) {
     const counterOffer = prompt('Enter your counter-offer amount (₦):');
     if (!counterOffer) return;
@@ -297,7 +306,10 @@ export default function CustomerDashboardTop() {
         {/* TOP HEADER BAR */}
         <div className="bg-darkcard rounded-3xl p-6 border border-white/10 shadow-[0_20px_60px_rgba(15,23,42,0.35)] mb-6">
           <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6">
-            <h1 className="text-lg font-black text-white shrink-0">Welcome back, {customerName} 👋</h1>
+            {/* FIXED: Now uses real user name or email */}
+            <h1 className="text-lg font-black text-white shrink-0">
+              Welcome back, {userProfile?.full_name || userProfile?.email || 'Customer'} 👋
+            </h1>
             <form onSubmit={handleSearch} className="flex-1 w-full">
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#64748B]" size={18} />
@@ -346,7 +358,7 @@ export default function CustomerDashboardTop() {
           </div>
         </div>
 
-        {/* NEW: MY REQUESTS & QUOTATIONS */}
+        {/* MY REQUESTS & QUOTATIONS */}
         <div className="bg-darkcard rounded-3xl p-6 sm:p-8 border border-white/10 shadow-[0_20px_60px_rgba(15,23,42,0.35)] mb-6">
           <h2 className="flex items-center gap-2 text-white font-black text-lg mb-5">
             <MessageCircle className="text-lemon" size={20} /> My Requests & Quotations
@@ -439,7 +451,6 @@ export default function CustomerDashboardTop() {
             <MediaUploader buttonLabel="Upload Equipment Image" helperText="Show the current condition of your equipment" onOpenLightbox={setLightboxFile} onChange={setFormMedia} />
           </div>
 
-          {/* [KEEPING ALL YOUR EXISTING CONDITIONAL FORM FIELDS FOR CAR, ELECTRONICS, HOSPITAL, SOLAR, HOME, BUILDING, BIKE EXACTLY AS THEY WERE] */}
           {isCar && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div><label className="text-slate text-xs font-semibold mb-1.5 block">Year of Manufacture</label><select value={yearOfManufacture} onChange={(e) => setYearOfManufacture(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-lemon/50"><option value="">Select year</option>{carYears.map((y) => <option key={y} value={y}>{y}</option>)}</select></div>
@@ -528,14 +539,14 @@ export default function CustomerDashboardTop() {
 
           <div className="bg-white/5 border border-white/10 rounded-2xl p-4 mt-5 space-y-1.5">
             <p className="text-slate text-xs">✅ Any year/model equipment can be registered on tpmarket.</p>
-            <p className="text-slate text-xs">⚠️ Insurance integration is subject to tpmarket approval based on age, condition, and eligibility criteria.</p>
+            <p className="text-slate text-xs">️ Insurance integration is subject to tpmarket approval based on age, condition, and eligibility criteria.</p>
           </div>
         </div>
 
         {/* SECTION 2: MY REGISTERED EQUIPMENT */}
         {equipmentList.length > 0 && (
           <div className="bg-darkcard rounded-3xl p-6 sm:p-8 border border-white/10 shadow-[0_20px_60px_rgba(15,23,42,0.35)] mb-6">
-            <h2 className="text-white font-black text-lg mb-5">📦 My Registered Equipment</h2>
+            <h2 className="text-white font-black text-lg mb-5"> My Registered Equipment</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {equipmentList.map((eq) => (
                 <div key={eq.id} className="bg-white/5 rounded-2xl p-5">
@@ -570,12 +581,12 @@ export default function CustomerDashboardTop() {
                     <button onClick={() => updateEquipment(eq.id, { forSale: !eq.forSale })} className="flex items-center justify-center gap-1.5 bg-[#2563EB] text-white text-xs font-bold px-3 py-2.5 rounded-full hover:brightness-110 transition-all">🛒 {eq.forSale ? 'Listed ✓' : 'Publish for Sale'}</button>
                     <button onClick={() => updateEquipment(eq.id, { stolen: !eq.stolen })} className="flex items-center justify-center gap-1.5 bg-red-600 text-white text-xs font-bold px-3 py-2.5 rounded-full hover:brightness-110 transition-all">🚨 {eq.stolen ? 'Reported ✓' : 'Report Stolen'}</button>
                     <Link href="/customer/maintenance-insurance" className="text-center flex items-center justify-center gap-1.5 bg-lemon text-[#0F172A] text-xs font-bold px-3 py-2.5 rounded-full hover:brightness-110 transition-all">🛡️ 3-Year Maintenance Insurance</Link>
-                    <Link href="/marketplace" className="text-center flex items-center justify-center gap-1.5 bg-purple text-white text-xs font-bold px-3 py-2.5 rounded-full hover:brightness-110 transition-all">🔍 View Nearby Specialists</Link>
+                    <Link href="/marketplace" className="text-center flex items-center justify-center gap-1.5 bg-purple text-white text-xs font-bold px-3 py-2.5 rounded-full hover:brightness-110 transition-all"> View Nearby Specialists</Link>
                     <button onClick={() => updateEquipment(eq.id, { showHistory: !eq.showHistory })} className="flex items-center justify-center gap-1.5 border-2 border-white/30 text-white text-xs font-bold px-3 py-2.5 rounded-full hover:bg-white/10 transition-colors">📋 Maintenance History</button>
                     <button onClick={() => handleDeleteEquipment(eq.id)} className="flex items-center justify-center gap-1.5 border-2 border-slate text-slate text-xs font-bold px-3 py-2.5 rounded-full hover:bg-white/5 hover:text-white hover:border-white/40 transition-colors">🗑️ Delete Equipment</button>
                   </div>
                   {eq.forSale && <p className="text-lemon text-xs font-semibold">✅ Listed on the Marketplace (demo)</p>}
-                  {eq.stolen && <p className="text-red-400 text-xs font-semibold">🚨 Reported stolen — network notified (demo)</p>}
+                  {eq.stolen && <p className="text-red-400 text-xs font-semibold"> Reported stolen — network notified (demo)</p>}
                   {eq.showHistory && <div className="bg-[#0F172A] border border-white/10 rounded-xl p-3 mt-2"><p className="text-slate text-xs">No maintenance history yet for this item.</p></div>}
                 </div>
               ))}
@@ -624,7 +635,7 @@ export default function CustomerDashboardTop() {
                 <span className="text-white font-bold">{tpCoins.toLocaleString()} / {REFERRAL_GOAL_2.toLocaleString()}</span>
               </div>
               <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden"><div className="h-full bg-purple rounded-full" style={{ width: `${progressPct2}%` }} /></div>
-              {tpCoins >= REFERRAL_GOAL_2 && <p className="text-purple text-xs font-bold mt-2">🎉 Goal reached!</p>}
+              {tpCoins >= REFERRAL_GOAL_2 && <p className="text-purple text-xs font-bold mt-2"> Goal reached!</p>}
             </div>
           </div>
         </div>
@@ -636,7 +647,7 @@ export default function CustomerDashboardTop() {
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#0F172A]/70 backdrop-blur-sm px-6">
           <div className="w-full max-w-sm bg-darkcard rounded-3xl p-7 border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)] text-center">
             <div className="w-14 h-14 rounded-full bg-lemon/10 text-lemon flex items-center justify-center mx-auto mb-4"><Shield size={26} /></div>
-            <p className="text-white font-bold text-base leading-relaxed mb-6">To activate Secured Maintenance for 15 equipment click here to pay ₦10,000.00.</p>
+            <p className="text-white font-bold text-base leading-relaxed mb-6">To activate Secured Maintenance for 15 equipment click here to pay 10,000.00.</p>
             <Link href="/customer/payment/secure-maintenance" className="block w-full bg-lemon text-[#0F172A] font-black py-3.5 rounded-full mb-3 hover:scale-[1.02] hover:shadow-[0_0_25px_rgba(204,255,0,0.5)] transition-all">Pay ₦10,000.00 & Activate</Link>
             <button onClick={() => setShowUpsellModal(false)} className="w-full text-slate text-xs font-semibold py-2 hover:text-white transition-colors">Maybe later</button>
           </div>
