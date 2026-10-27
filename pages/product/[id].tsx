@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase';
 import BottomNav from '../../components/BottomNav';
 import { 
   ShoppingCart, MessageCircle, CreditCard, MapPin, 
-  Briefcase, Star, ChevronLeft, X, Check 
+  Briefcase, Star, ChevronLeft, X, Check, Upload, Image as ImageIcon 
 } from 'lucide-react';
 
 export default function ProductDetailPage() {
@@ -23,6 +23,11 @@ export default function ProductDetailPage() {
   const [offerPrice, setOfferPrice] = useState('');
   const [quoteMessage, setQuoteMessage] = useState('');
   const [selectedInstallment, setSelectedInstallment] = useState<number | null>(null);
+
+  // NEW: Quote Image Upload States
+  const [quoteImages, setQuoteImages] = useState<File[]>([]);
+  const [quoteImagePreviews, setQuoteImagePreviews] = useState<string[]>([]);
+  const [quoteLoading, setQuoteLoading] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -117,14 +122,12 @@ export default function ProductDetailPage() {
     }
   };
 
-  // UPDATED: Fetch customer's actual location from profile before saving
   const submitNegotiation = async () => {
     if (!offerPrice) return alert('Please enter a price');
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return alert('Please log in to negotiate');
 
-      // Get customer's actual location from their profile
       const { data: profileData } = await supabase
         .from('profiles')
         .select('state, country')
@@ -136,7 +139,7 @@ export default function ProductDetailPage() {
         customer_id: user.id,
         seller_id: product.seller_id,
         customer_name: user.user_metadata?.full_name || user.email,
-        customer_location: `${profileData?.state || 'Nigeria'}, ${profileData?.country || 'Nigeria'}`, // NOW USES ACTUAL CUSTOMER LOCATION
+        customer_location: `${profileData?.state || 'Nigeria'}, ${profileData?.country || 'Nigeria'}`,
         description: `Negotiation Offer: ₦${parseFloat(offerPrice).toLocaleString()} (Original: ₦${product.price.toLocaleString()})`,
         request_type: 'negotiate',
         status: 'pending'
@@ -153,39 +156,70 @@ export default function ProductDetailPage() {
     }
   };
 
-  // UPDATED: Fetch customer's actual location from profile before saving
+  // UPDATED: Handle Quote Request with Image Upload
   const submitQuoteRequest = async () => {
     if (!quoteMessage.trim()) return alert('Please enter your request details');
+    setQuoteLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return alert('Please log in to send a quote request');
 
-      // Get customer's actual location from their profile
       const { data: profileData } = await supabase
         .from('profiles')
         .select('state, country')
         .eq('id', user.id)
         .single();
 
+      // Upload sample images if provided
+      let imageUrls: string[] = [];
+      if (quoteImages.length > 0) {
+        for (let i = 0; i < quoteImages.length; i++) {
+          const file = quoteImages[i];
+          const filePath = `quote-samples/${user.id}/${Date.now()}_${i}_${file.name}`;
+          const { error: uploadError } = await supabase.storage.from('product-images').upload(filePath, file);
+          if (uploadError) throw uploadError;
+          const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(filePath);
+          imageUrls.push(publicUrl);
+        }
+      }
+
       const { error } = await supabase.from('quote_requests').insert({
         product_id: product.id,
         customer_id: user.id,
         seller_id: product.seller_id,
         customer_name: user.user_metadata?.full_name || user.email,
-        customer_location: `${profileData?.state || 'Nigeria'}, ${profileData?.country || 'Nigeria'}`, // NOW USES ACTUAL CUSTOMER LOCATION
+        customer_location: `${profileData?.state || 'Nigeria'}, ${profileData?.country || 'Nigeria'}`,
         description: quoteMessage,
         request_type: 'quote',
-        status: 'pending'
+        status: 'pending',
+        sample_images: imageUrls // Save the image URLs to the database
       });
 
       if (error) throw error;
 
       setShowQuote(false);
       setQuoteMessage('');
-      alert('✅ Quote request sent! The provider will contact you soon.');
+      setQuoteImages([]);
+      setQuoteImagePreviews([]);
+      alert('✅ Quote request with sample images sent! The provider will contact you soon.');
     } catch (error) {
       console.error('Quote error:', error);
       alert('Error sending quote request. Please try again.');
+    } finally {
+      setQuoteLoading(false);
+    }
+  };
+
+  // NEW: Handle Quote Image Selection
+  const handleQuoteImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      if (files.length + quoteImages.length > 5) {
+        alert('You can only upload a maximum of 5 sample images.');
+        return;
+      }
+      setQuoteImages([...quoteImages, ...files]);
+      setQuoteImagePreviews([...quoteImagePreviews, ...files.map(file => URL.createObjectURL(file))]);
     }
   };
 
@@ -368,23 +402,59 @@ export default function ProductDetailPage() {
         </div>
       )}
 
+      {/* UPDATED: Request a Quote Modal with Image Upload */}
       {showQuote && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#1E293B] w-full max-w-sm rounded-3xl p-6 border border-white/10">
+          <div className="bg-[#1E293B] w-full max-w-sm rounded-3xl p-6 border border-white/10 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-black text-white">Request a Quote</h2>
               <button onClick={() => setShowQuote(false)}><X className="text-slate-400 hover:text-white" /></button>
             </div>
             <p className="text-slate-400 text-sm mb-4">Send a custom request to {product.seller_name}:</p>
+            
             <textarea 
               placeholder="Describe what you need (e.g., 'I need this installed in my home', 'Do you have 2 units available?', etc.)" 
               value={quoteMessage}
               onChange={(e) => setQuoteMessage(e.target.value)}
               className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3.5 px-4 text-white mb-4 focus:border-[#ccff00] focus:outline-none h-32 resize-none"
             />
+
+            {/* NEW: Image Upload Section */}
+            <div className="mb-4">
+              <label className="text-xs font-bold text-slate-400 mb-2 block">Upload Sample Images (Optional)</label>
+              <label className="w-full bg-[#0F172A] border-2 border-dashed border-white/20 rounded-xl py-6 px-4 text-center cursor-pointer hover:border-[#ccff00]/50 transition-all block">
+                <input type="file" multiple accept="image/*" onChange={handleQuoteImageChange} className="hidden" />
+                <ImageIcon className="mx-auto text-slate-400 mb-2" size={24} />
+                <p className="text-sm text-slate-400">Tap to upload photos of the item/damage</p>
+              </label>
+              {quoteImagePreviews.length > 0 && (
+                <div className="grid grid-cols-3 gap-2 mt-3">
+                  {quoteImagePreviews.map((url, idx) => (
+                    <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-white/10">
+                      <img src={url} alt={`Sample ${idx}`} className="w-full h-full object-cover" />
+                      <button 
+                        type="button"
+                        onClick={() => { 
+                          setQuoteImagePreviews(quoteImagePreviews.filter((_, i) => i !== idx)); 
+                          setQuoteImages(quoteImages.filter((_, i) => i !== idx)); 
+                        }} 
+                        className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="flex gap-3">
-              <button onClick={submitQuoteRequest} className="flex-1 bg-[#ccff00] text-[#0F172A] font-black py-3.5 rounded-xl hover:scale-[1.02] transition-all">
-                Send Request
+              <button 
+                onClick={submitQuoteRequest} 
+                disabled={quoteLoading}
+                className="flex-1 bg-[#ccff00] text-[#0F172A] font-black py-3.5 rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50"
+              >
+                {quoteLoading ? 'Uploading...' : 'Send Request'}
               </button>
               <button onClick={() => setShowQuote(false)} className="flex-1 bg-white/5 border border-white/10 text-white font-bold py-3.5 rounded-xl hover:bg-white/10 transition-all">
                 Cancel
