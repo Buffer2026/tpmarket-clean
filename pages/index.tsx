@@ -49,7 +49,7 @@ export default function Home() {
             href="/marketplace"
             className="inline-flex w-full sm:w-auto items-center justify-center gap-2 bg-darkcard text-lemon font-black text-lg px-10 py-5 rounded-full hover:scale-105 hover:shadow-[0_0_35px_rgba(204,255,0,0.35)] transition-all"
           >
-            🛒 Browse Marketplace
+             Browse Marketplace
           </Link>
         </div>
       </section>
@@ -81,23 +81,22 @@ export default function Home() {
           />
           <BentoCard
             icon={Clock3}
-            emoji="⏱️"
+            emoji="️"
             title="We Pay If They're Late"
             description="Time is money — get compensated automatically when a provider misses the deadline."
             accent="sky"
             className="md:col-span-2"
           />
           
-          {/* NEW EQUIPMENT REGISTRATION CARD - REPLACES 3 OLD CARDS */}
+          {/* EQUIPMENT REGISTRATION CARD */}
           <div className="md:col-span-3 bg-[#0F172A] rounded-3xl p-8 border border-[#ccff00]/20 shadow-[0_0_30px_rgba(204,255,0,0.05)]">
             <div className="mb-6">
-              <span className="inline-block bg-[#ccff00]/10 text-[#ccff00] text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full mb-3">
-                New Feature
-              </span>
+              {/* "New Feature" badge removed as requested */}
               <h3 className="text-2xl md:text-3xl font-black text-white leading-tight">
                 Register Your Equipment to Cut Down Maintenance Costs
               </h3>
-              <p className="text-slate-400 mt-2 text-sm">
+              {/* Fixed blurry text: changed to text-gray-300 */}
+              <p className="text-gray-300 mt-2 text-sm">
                 Cars, Computers, Phones, Office Equipment, Home Appliances, Hospital Equipment, Buildings.
               </p>
             </div>
@@ -132,13 +131,15 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="bg-[#1E293B] rounded-2xl p-4 flex items-center gap-4 mb-6 border border-white/5">
+            {/* AI REMINDER BOX - TEXT COLOR FIXED FOR READABILITY */}
+            <div className="bg-[#1E293B] rounded-2xl p-4 flex items-center gap-4 mb-6 border border-white/10">
               <div className="bg-purple-500/20 p-3 rounded-full text-purple-400">
                 <Bell size={24} />
               </div>
               <div>
                 <p className="text-white font-bold text-sm">AI Auto-Reminders</p>
-                <p className="text-slate-400 text-xs">Never miss a service due date. Our AI reminds you automatically.</p>
+                {/* Fixed blurry text: changed to text-gray-200 */}
+                <p className="text-gray-200 text-xs">Never miss a service due date. Our AI reminds you automatically.</p>
               </div>
             </div>
 
@@ -149,7 +150,8 @@ export default function Home() {
               Click Here to Start Registration of Your Equipment
             </Link>
             
-            <p className="text-center text-[10px] text-slate-500 mt-3">*Terms & Conditions apply for insurance partnership.</p>
+            {/* Fixed blurry text: changed to text-gray-400 */}
+            <p className="text-center text-[10px] text-gray-400 mt-3">*Terms & Conditions apply for insurance partnership.</p>
           </div>
 
           <BentoCard
@@ -176,7 +178,7 @@ export default function Home() {
             href="/customer/register"
             className="inline-flex items-center gap-2 bg-lemon text-[#0F172A] font-black px-8 py-4 rounded-full hover:scale-105 hover:shadow-[0_0_35px_rgba(204,255,0,0.6)] transition-all"
           >
-            Create Free Account 🚀
+            Create Free Account 
           </Link>
         </div>
       </section>
