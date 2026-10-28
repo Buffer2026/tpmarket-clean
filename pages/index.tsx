@@ -1,6 +1,6 @@
 import Head from 'next/head';
 import Link from 'next/link';
-import { ArrowRight, ShieldCheck, Zap, Users, Coins, TrendingUp, Clock3 } from 'lucide-react';
+import { ArrowRight, ShieldCheck, Zap, Users, Coins, TrendingUp, Clock3, Wrench, MapPin, Bell } from 'lucide-react';
 import GradientOrbs from '../components/GradientOrbs';
 import LandingNavbar from '../components/LandingNavbar';
 import BentoCard from '../components/BentoCard';
@@ -87,25 +87,71 @@ export default function Home() {
             accent="sky"
             className="md:col-span-2"
           />
-          <BentoCard
-            icon={Coins}
-            title="TP Coins Rewards"
-            description="Earn coins on every completed order and redeem them for discounts."
-            accent="purple"
-          />
-          <BentoCard
-            icon={Zap}
-            title="Instant Matching"
-            description="Get matched with vetted providers in seconds, not days."
-            accent="lemon"
-          />
-          <BentoCard
-            icon={ShieldCheck}
-            title="Verified Providers"
-            description="Every tailor and vendor is ID-verified and rated by real customers. 🛡️"
-            accent="sky"
-            className="md:col-span-2"
-          />
+          
+          {/* NEW EQUIPMENT REGISTRATION CARD - REPLACES 3 OLD CARDS */}
+          <div className="md:col-span-3 bg-[#0F172A] rounded-3xl p-8 border border-[#ccff00]/20 shadow-[0_0_30px_rgba(204,255,0,0.05)]">
+            <div className="mb-6">
+              <span className="inline-block bg-[#ccff00]/10 text-[#ccff00] text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full mb-3">
+                New Feature
+              </span>
+              <h3 className="text-2xl md:text-3xl font-black text-white leading-tight">
+                Register Your Equipment to Cut Down Maintenance Costs
+              </h3>
+              <p className="text-slate-400 mt-2 text-sm">
+                Cars, Computers, Phones, Office Equipment, Home Appliances, Hospital Equipment, Buildings.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4 mb-8">
+              <div className="flex gap-3 items-start">
+                <div className="bg-[#ccff00]/10 p-2 rounded-lg text-[#ccff00] shrink-0">
+                  <Wrench size={20} />
+                </div>
+                <p className="text-white text-sm font-medium">Fix equipment now and <span className="text-[#ccff00]">pay later</span> with our installment plans.</p>
+              </div>
+
+              <div className="flex gap-3 items-start">
+                <div className="bg-[#ccff00]/10 p-2 rounded-lg text-[#ccff00] shrink-0">
+                  <MapPin size={20} />
+                </div>
+                <p className="text-white text-sm font-medium">Instant connect with the <span className="text-[#ccff00]">nearest specialist</span> for your equipment.</p>
+              </div>
+
+              <div className="flex gap-3 items-start">
+                <div className="bg-[#ccff00]/10 p-2 rounded-lg text-[#ccff00] shrink-0">
+                  <ShieldCheck size={20} />
+                </div>
+                <p className="text-white text-sm font-medium">Get linked with our licensed insurance partner after 90 days to <span className="text-[#ccff00]">cut 50% maintenance burden for 3 years</span>.</p>
+              </div>
+
+              <div className="flex gap-3 items-start">
+                <div className="bg-[#ccff00]/10 p-2 rounded-lg text-[#ccff00] shrink-0">
+                  <TrendingUp size={20} />
+                </div>
+                <p className="text-white text-sm font-medium">Register up to 20 equipment items and <span className="text-[#ccff00]">track all maintenance records</span> in one place.</p>
+              </div>
+            </div>
+
+            <div className="bg-[#1E293B] rounded-2xl p-4 flex items-center gap-4 mb-6 border border-white/5">
+              <div className="bg-purple-500/20 p-3 rounded-full text-purple-400">
+                <Bell size={24} />
+              </div>
+              <div>
+                <p className="text-white font-bold text-sm">AI Auto-Reminders</p>
+                <p className="text-slate-400 text-xs">Never miss a service due date. Our AI reminds you automatically.</p>
+              </div>
+            </div>
+
+            <Link 
+              href="/equipment-register" 
+              className="block w-full text-center bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-xl hover:scale-[1.02] hover:shadow-[0_0_25px_rgba(204,255,0,0.5)] transition-all"
+            >
+              Click Here to Start Registration of Your Equipment
+            </Link>
+            
+            <p className="text-center text-[10px] text-slate-500 mt-3">*Terms & Conditions apply for insurance partnership.</p>
+          </div>
+
           <BentoCard
             icon={Users}
             title="Escrow Protected"
