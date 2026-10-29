@@ -1,37 +1,19 @@
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { ShoppingBag, ShoppingCart, Bell, Heart, User } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { Home, ShoppingBag, ShoppingCart, Bell, User } from 'lucide-react';
 
 export default function BottomNav() {
   const router = useRouter();
-  const [unreadCount, setUnreadCount] = useState(0);
-  
-  // Everyone goes to the unified account hub
-  const accountLink = '/account'; 
 
-  useEffect(() => {
-    async function getUnreadCount() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { count } = await supabase
-          .from('notifications')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .eq('is_read', false);
-        
-        setUnreadCount(count || 0);
-      }
-    }
-    getUnreadCount();
-  }, []);
+  // HARDCODED to the exact link that works at the top of your app.
+  const accountLink = '/dashboard'; 
 
+  // 5 perfectly spaced tabs for mobile
   const items = [
+    { label: 'Home', href: '/', icon: Home },
     { label: 'Shop', href: '/marketplace', icon: ShoppingBag },
     { label: 'Cart', href: '/cart', icon: ShoppingCart },
-    { label: 'Notifications', href: '/notifications', icon: Bell, badge: unreadCount },
-    { label: 'Wishlist', href: '/wishlist', icon: Heart },
+    { label: 'Alerts', href: '/notifications', icon: Bell, badge: 3 }, // Shortened to "Alerts" to fit mobile screens perfectly
     { label: 'Account', href: accountLink, icon: User },
   ];
 
@@ -50,8 +32,8 @@ export default function BottomNav() {
               }`}
             >
               <span className="relative">
-                <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
-                {item.badge > 0 && (
+                <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+                {!!item.badge && (
                   <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center leading-none">
                     {item.badge}
                   </span>
