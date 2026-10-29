@@ -28,22 +28,22 @@ export default function TpwecanVerify() {
     setLoading(true);
     setError('');
 
-    // SIMPLE LOGIC: Just save the ID to the user's profile and mark them verified.
-    // No complex table checks or payment confirmations.
+    // FIX: Changed .update to .upsert. 
+    // This creates the profile row if it doesn't exist, or updates it if it does.
     const { error } = await supabase
       .from('profiles')
-      .update({
+      .upsert({
+        id: userId, // Crucial: Must include the ID for upsert to work
         tpwecan_id: tpwecanId.toUpperCase(),
         tpwecan_verified: true,
         role: 'provider' 
-      })
-      .eq('id', userId);
+      });
 
     if (error) {
-      setError('Error saving your ID. Please try again.');
+      // Show the exact database error so we know what's wrong
+      setError('Database Error: ' + error.message); 
       setLoading(false);
     } else {
-      // Success! Go straight to publish page.
       router.push('/provider/publish');
     }
   }
