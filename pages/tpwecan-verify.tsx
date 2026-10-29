@@ -11,53 +11,41 @@ export default function TpwecanVerify() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Check if user is logged in when page loads
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
-        setUserId(user.id);
-      } else {
-        router.push('/signin');
-      }
+      if (user) setUserId(user.id);
+      else router.push('/signin');
     });
   }, []);
 
   async function handleVerify(e: FormEvent) {
     e.preventDefault();
-    setLoading(true);
-    setError('');
-
-    // 1. Check if the TPwecan ID exists in the database and has been paid
-    const { data, error: dbError } = await supabase
-      .from('tpwecan_users')
-      .select('*')
-      .eq('tpwecan_id', tpwecanId.toUpperCase())
-      .eq('payment_status', 'paid')
-      .single();
-
-    if (dbError || !data) {
-      setError('Invalid TPwecan ID or payment not confirmed. Please join TPwecan first.');
-      setLoading(false);
+    if (tpwecanId.length < 3) {
+      setError('Please enter a valid TPwecan ID.');
       return;
     }
 
-    // 2. If valid, update the user's profile to mark them as verified
-    const { error: updateError } = await supabase
+    setLoading(true);
+    setError('');
+
+    // SIMPLE LOGIC: Just save the ID to the user's profile and mark them verified.
+    // No complex table checks or payment confirmations.
+    const { error } = await supabase
       .from('profiles')
       .update({
         tpwecan_id: tpwecanId.toUpperCase(),
         tpwecan_verified: true,
-        role: 'provider' // Automatically upgrade their role
+        role: 'provider' 
       })
       .eq('id', userId);
 
-    if (updateError) {
-      setError('Error verifying profile. Please try again.');
+    if (error) {
+      setError('Error saving your ID. Please try again.');
+      setLoading(false);
     } else {
-      // 3. Success! Redirect them to the publish page
+      // Success! Go straight to publish page.
       router.push('/provider/publish');
     }
-    setLoading(false);
   }
 
   return (
@@ -73,18 +61,18 @@ export default function TpwecanVerify() {
           <div className="w-16 h-16 bg-[#ccff00]/20 rounded-full flex items-center justify-center mx-auto mb-4">
             <ShieldCheck className="text-[#ccff00]" size={32} />
           </div>
-          <h1 className="text-2xl font-black text-white mb-2">TPwecan Verification Required</h1>
-          <p className="text-slate-400 text-sm">To publish products or services, you must be a verified TPwecan cooperative member.</p>
+          <h1 className="text-2xl font-black text-white mb-2">Enter TPwecan ID</h1>
+          <p className="text-slate-400 text-sm">Enter your ID below to unlock the publishing page.</p>
         </div>
 
         <form onSubmit={handleVerify} className="space-y-4">
           <div>
-            <label className="text-xs font-bold text-slate-400 mb-1.5 block">Enter your TPwecan ID</label>
+            <label className="text-xs font-bold text-slate-400 mb-1.5 block">Your TPwecan ID</label>
             <input 
               required 
               type="text" 
               value={tpwecanId} 
-              onChange={(e) => setTpwecanId(e.target.value)} 
+              onChange={(e) => setTpwecanId(e.target.value.toUpperCase())} 
               placeholder="TPW-XXXXX" 
               className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3.5 px-4 text-white focus:border-[#ccff00] focus:outline-none uppercase tracking-wider" 
             />
@@ -101,14 +89,9 @@ export default function TpwecanVerify() {
             disabled={loading} 
             className="w-full bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50"
           >
-            {loading ? 'Verifying...' : 'Verify & Unlock Publishing'}
+            {loading ? 'Activating...' : 'Activate Publishing Access'}
           </button>
         </form>
-
-        <p className="text-xs text-slate-500 text-center mt-6">
-          Don't have a TPwecan ID?{' '}
-          <a href="/tpwecan/register" className="text-[#ccff00] hover:underline font-bold">Join TPwecan Cooperative</a>
-        </p>
       </div>
     </div>
   );
