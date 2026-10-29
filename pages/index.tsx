@@ -32,13 +32,13 @@ export default function Home() {
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link
-            href="/provider/register"
+            href="/signup"
             className="w-full sm:w-auto bg-lemon text-[#0F172A] font-black px-8 py-4 rounded-full flex items-center justify-center gap-2 hover:scale-105 hover:shadow-[0_0_35px_rgba(204,255,0,0.6)] transition-all"
           >
             Become A Seller/ Service Provider (Free)
           </Link>
           <Link
-            href="/customer/register"
+            href="/signup"
             className="w-full sm:w-auto bg-white/70 backdrop-blur-xl border-2 border-sky text-[#0F172A] font-black px-8 py-4 rounded-full hover:scale-105 hover:bg-white transition-all"
           >
             I'm A New Customer
@@ -91,11 +91,9 @@ export default function Home() {
           {/* EQUIPMENT REGISTRATION CARD */}
           <div className="md:col-span-3 bg-[#0F172A] rounded-3xl p-8 border border-[#ccff00]/20 shadow-[0_0_30px_rgba(204,255,0,0.05)]">
             <div className="mb-6">
-              {/* "New Feature" badge removed as requested */}
               <h3 className="text-2xl md:text-3xl font-black text-white leading-tight">
                 Register Your Equipment to Cut Down Maintenance Costs
               </h3>
-              {/* Fixed blurry text: changed to text-gray-300 */}
               <p className="text-gray-300 mt-2 text-sm">
                 Cars, Computers, Phones, Office Equipment, Home Appliances, Hospital Equipment, Buildings.
               </p>
@@ -131,26 +129,24 @@ export default function Home() {
               </div>
             </div>
 
-            {/* AI REMINDER BOX - TEXT COLOR FIXED FOR READABILITY */}
+            {/* AI REMINDER BOX */}
             <div className="bg-[#1E293B] rounded-2xl p-4 flex items-center gap-4 mb-6 border border-white/10">
               <div className="bg-purple-500/20 p-3 rounded-full text-purple-400">
                 <Bell size={24} />
               </div>
               <div>
                 <p className="text-white font-bold text-sm">AI Auto-Reminders</p>
-                {/* Fixed blurry text: changed to text-gray-200 */}
                 <p className="text-gray-200 text-xs">Never miss a service due date. Our AI reminds you automatically.</p>
               </div>
             </div>
 
             <Link 
-              href="/equipment-register" 
+              href="/signup"
               className="block w-full text-center bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-xl hover:scale-[1.02] hover:shadow-[0_0_25px_rgba(204,255,0,0.5)] transition-all"
             >
               Click Here to Start Registration of Your Equipment
             </Link>
             
-            {/* Fixed blurry text: changed to text-gray-400 */}
             <p className="text-center text-[10px] text-gray-400 mt-3">*Terms & Conditions apply for insurance partnership.</p>
           </div>
 
@@ -172,10 +168,10 @@ export default function Home() {
 
       <section className="max-w-4xl mx-auto px-6 pb-24 text-center relative">
         <div className="bg-darkcard rounded-3xl p-12 shadow-[0_0_60px_rgba(139,92,246,0.35)] border border-white/10">
-          <h2 className="text-4xl md:text-5xl font-black mb-4 text-white">Ready to get started? 🚀</h2>
+          <h2 className="text-4xl md:text-5xl font-black mb-4 text-white">Ready to get started? </h2>
           <p className="text-slate mb-8">Join TPMarket today and experience guaranteed deals.</p>
           <Link
-            href="/customer/register"
+            href="/signup"
             className="inline-flex items-center gap-2 bg-lemon text-[#0F172A] font-black px-8 py-4 rounded-full hover:scale-105 hover:shadow-[0_0_35px_rgba(204,255,0,0.6)] transition-all"
           >
             Create Free Account 

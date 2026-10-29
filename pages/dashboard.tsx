@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import Link from 'next/link'; // Added Link import
 import Head from 'next/head';
 import { supabase } from '../lib/supabase';
 import BottomNav from '../components/BottomNav';
@@ -35,15 +36,6 @@ export default function UniversalDashboard() {
     setLoading(false);
   }
 
-  // THE TPWECAN GATE LOGIC
-  function handlePublishClick() {
-    if (profile?.tpwecan_verified) {
-      router.push('/provider/publish'); // Go to publish page
-    } else {
-      router.push('/tpwecan-verify'); // Go to verification page
-    }
-  }
-
   if (loading) return <div className="min-h-screen bg-[#0F172A] flex items-center justify-center text-white">Loading...</div>;
 
   return (
@@ -74,12 +66,15 @@ export default function UniversalDashboard() {
             <p className="text-xs text-slate-400 mt-1">Browse marketplace</p>
           </button>
 
-          {/* 2. Sell / Publish (GATED) */}
-          <button onClick={handlePublishClick} className="bg-[#1E293B] p-4 rounded-2xl border border-white/10 hover:border-[#ccff00]/50 transition-all text-left">
+          {/* 2. Sell / Publish (GATED) - NOW USING LINK FOR 100% RELIABILITY */}
+          <Link 
+            href={profile?.tpwecan_verified ? '/provider/publish' : '/tpwecan-verify'} 
+            className="bg-[#1E293B] p-4 rounded-2xl border border-white/10 hover:border-[#ccff00]/50 transition-all text-left block"
+          >
             <Wrench className="text-[#ccff00] mb-3" size={28} />
             <h3 className="font-bold text-white">Sell / Offer Service</h3>
             <p className="text-xs text-slate-400 mt-1">{profile?.tpwecan_verified ? 'Publish now' : 'Requires TPwecan ID'}</p>
-          </button>
+          </Link>
 
           {/* 3. My Equipment */}
           <button onClick={() => router.push('/equipment/dashboard')} className="bg-[#1E293B] p-4 rounded-2xl border border-white/10 hover:border-[#ccff00]/50 transition-all text-left">
