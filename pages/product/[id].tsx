@@ -20,6 +20,7 @@ export default function ProductDetailPage() {
   const [showNegotiate, setShowNegotiate] = useState(false);
   const [showQuote, setShowQuote] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showLoginGate, setShowLoginGate] = useState(false); // NEW: For cart login gate
   const [offerPrice, setOfferPrice] = useState('');
   const [quoteMessage, setQuoteMessage] = useState('');
   const [selectedInstallment, setSelectedInstallment] = useState<number | null>(null);
@@ -90,12 +91,23 @@ export default function ProductDetailPage() {
     }
   };
 
-  const addToCart = () => {
+  // ✅ FIXED: Added User Check (The Bouncer) before adding to cart
+  const addToCart = async () => {
     if (!product || !product.id) {
       alert('Product information is missing.');
       return;
     }
 
+    // 1. THE BOUNCER: Check if user is signed in
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      // If no user is signed in, show the login gate!
+      setShowLoginGate(true); 
+      return; // STOP here. Do not add to cart.
+    }
+
+    // 2. If we get here, the user IS signed in. Proceed with cart logic.
     const cartItem = {
       productId: product.id,
       name: product.name,
@@ -156,7 +168,6 @@ export default function ProductDetailPage() {
     }
   };
 
-  // UPDATED: Handle Quote Request with Image Upload
   const submitQuoteRequest = async () => {
     if (!quoteMessage.trim()) return alert('Please enter your request details');
     setQuoteLoading(true);
@@ -170,7 +181,6 @@ export default function ProductDetailPage() {
         .eq('id', user.id)
         .single();
 
-      // Upload sample images if provided
       let imageUrls: string[] = [];
       if (quoteImages.length > 0) {
         for (let i = 0; i < quoteImages.length; i++) {
@@ -192,7 +202,7 @@ export default function ProductDetailPage() {
         description: quoteMessage,
         request_type: 'quote',
         status: 'pending',
-        sample_images: imageUrls // Save the image URLs to the database
+        sample_images: imageUrls
       });
 
       if (error) throw error;
@@ -210,7 +220,6 @@ export default function ProductDetailPage() {
     }
   };
 
-  // NEW: Handle Quote Image Selection
   const handleQuoteImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
@@ -323,6 +332,32 @@ export default function ProductDetailPage() {
 
       <BottomNav />
 
+      {/* ✅ NEW: LOGIN GATE POP-UP FOR CART */}
+      {showLoginGate && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center px-6 bg-[#0F172A]/80 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-[#1E293B] rounded-3xl p-8 border border-white/10 shadow-2xl relative text-center">
+            <button onClick={() => setShowLoginGate(false)} className="absolute top-4 right-4 text-gray-400 hover:text-white">
+              <X size={24} />
+            </button>
+            
+            <div className="w-14 h-14 rounded-full bg-[#ccff00]/10 text-[#ccff00] flex items-center justify-center mx-auto mb-4">
+              <ShoppingCart size={26} />
+            </div>
+            <h2 className="text-xl font-black text-white mb-2">Sign In to Use Cart</h2>
+            <p className="text-gray-400 text-sm mb-6">Please sign in to save items to your personal cart and checkout securely.</p>
+            
+            <div className="space-y-3">
+              <Link href="/signin" className="block w-full bg-[#ccff00] text-[#0F172A] font-black py-3.5 rounded-xl hover:scale-[1.02] transition-all">
+                Sign In
+              </Link>
+              <button onClick={() => setShowLoginGate(false)} className="block w-full bg-white/5 border border-white/10 text-white font-bold py-3.5 rounded-xl hover:bg-white/10 transition-all">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showPaymentModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
           <div className="bg-[#1E293B] w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 max-h-[90vh] overflow-y-auto border border-white/10">
@@ -402,7 +437,6 @@ export default function ProductDetailPage() {
         </div>
       )}
 
-      {/* UPDATED: Request a Quote Modal with Image Upload */}
       {showQuote && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#1E293B] w-full max-w-sm rounded-3xl p-6 border border-white/10 max-h-[90vh] overflow-y-auto">
@@ -419,7 +453,6 @@ export default function ProductDetailPage() {
               className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3.5 px-4 text-white mb-4 focus:border-[#ccff00] focus:outline-none h-32 resize-none"
             />
 
-            {/* NEW: Image Upload Section */}
             <div className="mb-4">
               <label className="text-xs font-bold text-slate-400 mb-2 block">Upload Sample Images (Optional)</label>
               <label className="w-full bg-[#0F172A] border-2 border-dashed border-white/20 rounded-xl py-6 px-4 text-center cursor-pointer hover:border-[#ccff00]/50 transition-all block">

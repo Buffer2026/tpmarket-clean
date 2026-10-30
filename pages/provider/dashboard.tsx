@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
+import Link from 'next/link'; // Added for the verification link
 import Head from 'next/head';
 import { supabase } from '../../lib/supabase';
 import BottomNav from '../../components/BottomNav';
@@ -12,7 +13,9 @@ export default function ProviderDashboard() {
   const [showForm, setShowForm] = useState(false);
   const [myListings, setMyListings] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]); 
-  const [isCertified, setIsCertified] = useState(false); // NEW: Certification state
+  
+  // CHANGED: Certification state to Verification state
+  const [isVerified, setIsVerified] = useState(false); 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Publish Form States
@@ -40,7 +43,7 @@ export default function ProviderDashboard() {
   useEffect(() => {
     fetchMyListings();
     fetchRequests(); 
-    fetchProfileAndCertification();
+    fetchProfileAndVerification();
   }, []);
 
   async function fetchMyListings() {
@@ -61,14 +64,20 @@ export default function ProviderDashboard() {
     if (data) setRequests(data);
   }
 
-  // NEW: Fetch profile AND check TP WECAN certification
-  async function fetchProfileAndCertification() {
+  // UPDATED: Fetch profile AND check TPwecan verification status
+  async function fetchProfileAndVerification() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data } = await supabase.from('profiles').select('avatar_url, full_name, wecan_certified').eq('id', user.id).single();
+    const { data } = await supabase
+      .from('profiles')
+      .select('avatar_url, full_name, tpwecan_verified, can_publish')
+      .eq('id', user.id)
+      .single();
+    
     if (data) {
       if (data.avatar_url) setProfilePreview(data.avatar_url);
-      setIsCertified(data.wecan_certified || false); // Set certification status
+      // User is verified if either flag is true
+      setIsVerified(data.can_publish || data.tpwecan_verified || false); 
     }
   }
 
@@ -137,7 +146,6 @@ export default function ProviderDashboard() {
     }
   }
 
-  // NEW: Handle accepting a customer's counter-offer
   async function handleAcceptCounterOffer(reqId: string) {
     if (!confirm("Accept this counter-offer? The customer will be notified to proceed with payment.")) return;
     const { error } = await supabase
@@ -247,20 +255,22 @@ export default function ProviderDashboard() {
           </div>
         </div>
 
-        {/* TP WECAN CERTIFICATION GATE */}
-        {!isCertified ? (
+        {/* ✅ UPDATED: TP WECAN VERIFICATION GATE */}
+        {!isVerified ? (
           <div className="bg-red-500/10 border-2 border-red-500/30 p-8 rounded-2xl text-center">
             <Shield className="mx-auto text-red-400 mb-4" size={48} />
-            <h3 className="text-white font-black text-xl mb-2">🔒 TP WECAN Certification Required</h3>
+            <h3 className="text-white font-black text-xl mb-2">🔒 TPwecan Verification Required</h3>
             <p className="text-slate-300 text-sm mb-6 max-w-md mx-auto">
-              To maintain the highest quality and trust on TP Market, only certified TP WECAN providers can publish jobs and services. Please complete your cooperative certification to unlock this feature.
+              To maintain the highest quality and trust on TP Market, you must verify your TPwecan ID to publish jobs and services. 
+              <br/><br/>
+              <span className="text-[#ccff00] font-bold">Ensure the name on your TP Market profile matches your TPwecan registration exactly.</span>
             </p>
-            <button className="bg-red-500 text-white font-black py-3 px-8 rounded-xl hover:bg-red-600 transition-all shadow-lg shadow-red-500/20">
-              Start Certification Process
-            </button>
+            <Link href="/provider/verify" className="inline-block bg-[#ccff00] text-[#0F172A] font-black py-3 px-8 rounded-xl hover:scale-[1.02] transition-all shadow-lg shadow-[#ccff00]/20">
+              Verify TPwecan ID Now
+            </Link>
           </div>
         ) : (
-          /* PUBLISH FORM (Only visible if certified) */
+          /* PUBLISH FORM (Only visible if verified) */
           !showForm ? (
             <button onClick={() => setShowForm(true)} className="w-full flex items-center justify-center gap-2 bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-2xl hover:scale-[1.02] transition-all shadow-lg shadow-[#ccff00]/20">
               <Plus size={20} /> Publish New Service
@@ -325,7 +335,6 @@ export default function ProviderDashboard() {
                     <p className="text-white text-sm italic">"{req.description}"</p>
                   </div>
 
-                  {/* PENDING: Send Quotation */}
                   {req.status === 'pending' && (
                     <div className="flex gap-2">
                       <button onClick={() => { setSelectedRequest(req); setShowQuoteModal(true); }} className="flex-1 bg-[#ccff00] text-[#0F172A] text-xs font-bold py-2.5 rounded-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-1">
@@ -337,14 +346,12 @@ export default function ProviderDashboard() {
                     </div>
                   )}
 
-                  {/* QUOTED: Waiting for customer */}
                   {req.status === 'quoted' && (
                     <div className="text-center text-sm text-slate-400 bg-[#0F172A] p-3 rounded-lg border border-blue-500/20">
                       ✅ Quotation sent. Waiting for customer to accept or negotiate.
                     </div>
                   )}
 
-                  {/* NEGOTIATING: Customer sent a counter-offer */}
                   {req.status === 'negotiating' && (
                     <div className="bg-purple-500/10 border border-purple-500/30 p-4 rounded-xl">
                       <p className="text-purple-400 font-bold text-sm mb-2 flex items-center gap-2">
@@ -367,7 +374,7 @@ export default function ProviderDashboard() {
         </div>
 
         {/* MY ACTIVE SERVICES */}
-        {isCertified && myListings.length > 0 && (
+        {isVerified && myListings.length > 0 && (
           <div>
             <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><CheckCircle size={18} className="text-[#ccff00]" /> My Active Services</h2>
             <div className="space-y-3">
@@ -389,7 +396,7 @@ export default function ProviderDashboard() {
         )}
       </div>
 
-      {/* QUOTATION MODAL (Same as before) */}
+      {/* QUOTATION MODAL */}
       {showQuoteModal && selectedRequest && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#1E293B] w-full max-w-md rounded-3xl p-6 border border-[#ccff00]/30 shadow-2xl max-h-[90vh] overflow-y-auto">
