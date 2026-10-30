@@ -40,7 +40,7 @@ export default function ProviderDashboard() {
   const [quoteFile, setQuoteFile] = useState<File | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
 
-  // 🔒 NUCLEAR SECURITY CHECK: Uses window.location.href to force a hard browser reload
+  // 🔒 STRICT SECURITY CHECK: Uses window.location.href to force a hard browser reload
   useEffect(() => {
     async function checkAccess() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -51,20 +51,21 @@ export default function ProviderDashboard() {
 
       const { data } = await supabase
         .from('profiles')
-        .select('can_publish, avatar_url, full_name')
+        .select('can_publish, tpwecan_verified, avatar_url, full_name')
         .eq('id', user.id)
         .single();
       
-      // If can_publish is NOT true, force a hard browser redirect to the verify page
-      if (!data?.can_publish) {
+      // THE STRICT GATE: If database says false, hard redirect immediately.
+      if (!data?.can_publish && !data?.tpwecan_verified) {
         window.location.href = '/provider/verify'; 
-      } else {
-        // User is verified, load the dashboard data
-        if (data.avatar_url) setProfilePreview(data.avatar_url);
-        setIsVerified(true);
-        fetchMyListings();
-        fetchRequests(); 
+        return;
       }
+
+      // Only load dashboard if verified
+      if (data.avatar_url) setProfilePreview(data.avatar_url);
+      setIsVerified(true);
+      fetchMyListings();
+      fetchRequests(); 
     }
     checkAccess();
   }, []);
@@ -200,7 +201,7 @@ export default function ProviderDashboard() {
       fetchMyListings();
       setTimeout(() => setMessage(''), 3000);
     } catch (error: any) {
-      setMessage(' Error: ' + error.message);
+      setMessage('❌ Error: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -261,7 +262,7 @@ export default function ProviderDashboard() {
           </div>
         </div>
 
-        {/* PUBLISH FORM (Only visible if the ruthless check passed and isVerified is true) */}
+        {/* PUBLISH FORM (Only visible if the strict check passed and isVerified is true) */}
         {isVerified && (
           !showForm ? (
             <button onClick={() => setShowForm(true)} className="w-full flex items-center justify-center gap-2 bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-2xl hover:scale-[1.02] transition-all shadow-lg shadow-[#ccff00]/20">
@@ -378,7 +379,7 @@ export default function ProviderDashboard() {
                     <p className="text-xs text-slate-400">{item.category} • {item.type}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-black text-[#ccff00]">{item.price?.toLocaleString()}</p>
+                    <p className="font-black text-[#ccff00]">₦{item.price?.toLocaleString()}</p>
                     <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-1 rounded-full font-bold">Active</span>
                   </div>
                 </div>
