@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
-import Link from 'next/link'; // Added for the verification link
+import Link from 'next/link';
 import Head from 'next/head';
 import { supabase } from '../../lib/supabase';
 import BottomNav from '../../components/BottomNav';
@@ -14,7 +14,7 @@ export default function ProviderDashboard() {
   const [myListings, setMyListings] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]); 
   
-  // CHANGED: Certification state to Verification state
+  // Verification state
   const [isVerified, setIsVerified] = useState(false); 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -40,10 +40,33 @@ export default function ProviderDashboard() {
   const [quoteFile, setQuoteFile] = useState<File | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
 
+  // 🔒 RUTHLESS CHECK: Verify access on mount
   useEffect(() => {
-    fetchMyListings();
-    fetchRequests(); 
-    fetchProfileAndVerification();
+    async function checkAccess() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.replace('/signin');
+        return;
+      }
+
+      const { data } = await supabase
+        .from('profiles')
+        .select('can_publish, avatar_url, full_name')
+        .eq('id', user.id)
+        .single();
+      
+      // If can_publish is NOT true, kick them out immediately to the verify page
+      if (!data?.can_publish) {
+        router.replace('/provider/verify'); 
+      } else {
+        // User is verified, load the dashboard data
+        if (data.avatar_url) setProfilePreview(data.avatar_url);
+        setIsVerified(true);
+        fetchMyListings();
+        fetchRequests(); 
+      }
+    }
+    checkAccess();
   }, []);
 
   async function fetchMyListings() {
@@ -62,23 +85,6 @@ export default function ProviderDashboard() {
       .eq('seller_id', user.id)
       .order('created_at', { ascending: false });
     if (data) setRequests(data);
-  }
-
-  // UPDATED: Fetch profile AND check TPwecan verification status
-  async function fetchProfileAndVerification() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data } = await supabase
-      .from('profiles')
-      .select('avatar_url, full_name, tpwecan_verified, can_publish')
-      .eq('id', user.id)
-      .single();
-    
-    if (data) {
-      if (data.avatar_url) setProfilePreview(data.avatar_url);
-      // User is verified if either flag is true
-      setIsVerified(data.can_publish || data.tpwecan_verified || false); 
-    }
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -255,22 +261,8 @@ export default function ProviderDashboard() {
           </div>
         </div>
 
-        {/* ✅ UPDATED: TP WECAN VERIFICATION GATE */}
-        {!isVerified ? (
-          <div className="bg-red-500/10 border-2 border-red-500/30 p-8 rounded-2xl text-center">
-            <Shield className="mx-auto text-red-400 mb-4" size={48} />
-            <h3 className="text-white font-black text-xl mb-2">🔒 TPwecan Verification Required</h3>
-            <p className="text-slate-300 text-sm mb-6 max-w-md mx-auto">
-              To maintain the highest quality and trust on TP Market, you must verify your TPwecan ID to publish jobs and services. 
-              <br/><br/>
-              <span className="text-[#ccff00] font-bold">Ensure the name on your TP Market profile matches your TPwecan registration exactly.</span>
-            </p>
-            <Link href="/provider/verify" className="inline-block bg-[#ccff00] text-[#0F172A] font-black py-3 px-8 rounded-xl hover:scale-[1.02] transition-all shadow-lg shadow-[#ccff00]/20">
-              Verify TPwecan ID Now
-            </Link>
-          </div>
-        ) : (
-          /* PUBLISH FORM (Only visible if verified) */
+        {/* PUBLISH FORM (Only visible if the ruthless check passed and isVerified is true) */}
+        {isVerified && (
           !showForm ? (
             <button onClick={() => setShowForm(true)} className="w-full flex items-center justify-center gap-2 bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-2xl hover:scale-[1.02] transition-all shadow-lg shadow-[#ccff00]/20">
               <Plus size={20} /> Publish New Service
