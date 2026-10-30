@@ -26,6 +26,29 @@ export default function PublishPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
+  //  SECURITY GATE: Block access if not verified
+  useEffect(() => {
+    async function checkPublishAccess() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { 
+        window.location.href = '/signin'; 
+        return; 
+      }
+
+      const { data } = await supabase
+        .from('profiles')
+        .select('can_publish')
+        .eq('id', user.id)
+        .single();
+      
+      // If can_publish is NOT true, kick them out immediately
+      if (!data?.can_publish) {
+        window.location.href = '/provider/verify'; 
+      }
+    }
+    checkPublishAccess();
+  }, []);
+
   // If editing, fetch the old data
   useEffect(() => {
     if (id) {
