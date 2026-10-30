@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { supabase } from '../../lib/supabase';
@@ -13,8 +13,6 @@ export default function ProviderDashboard() {
   const [myListings, setMyListings] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]); 
   const [isVerified, setIsVerified] = useState(false); 
-  
-  // ... (Keep your existing form states here: name, price, category, etc.) ...
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [category, setCategory] = useState('Mechanics');
@@ -24,7 +22,6 @@ export default function ProviderDashboard() {
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [profilePreview, setProfilePreview] = useState<string | null>(null);
 
-  // 🔒 PROOF CHECK: This will pop up and tell you EXACTLY what the database says
   useEffect(() => {
     async function checkAccess() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -36,7 +33,6 @@ export default function ProviderDashboard() {
         .eq('id', user.id)
         .single();
       
-      // PROOF ALERT: This will show you the exact database value
       alert(`🔒 SECURITY CHECK:\ncan_publish = ${data?.can_publish}\nError = ${error ? error.message : 'None'}`);
 
       if (!data?.can_publish) {
@@ -101,7 +97,6 @@ export default function ProviderDashboard() {
       </div>
 
       <div className="max-w-4xl mx-auto p-6 space-y-6">
-        {/* ONLY SHOW PUBLISH BUTTON IF isVerified IS TRUE */}
         {isVerified ? (
           !showForm ? (
             <button onClick={() => setShowForm(true)} className="w-full bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-2xl">
@@ -126,4 +121,4 @@ export default function ProviderDashboard() {
       <BottomNav />
     </div>
   );
-}git add .
+}
