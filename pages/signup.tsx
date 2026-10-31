@@ -2,7 +2,7 @@ import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { supabase } from '../lib/supabase';
-import { Mail, Phone, MapPin, CheckCircle } from 'lucide-react';
+import { CheckCircle, Loader2 } from 'lucide-react';
 
 export default function UniversalSignup() {
   const router = useRouter();
@@ -24,6 +24,7 @@ export default function UniversalSignup() {
       const { error } = await supabase.auth.signInWithOtp({
         email: email,
         options: {
+          shouldCreateUser: true, // <-- THIS IS THE MISSING KEY! It forces the trigger to fire.
           data: {
             full_name: fullName,
             phone: phone,
@@ -94,8 +95,8 @@ export default function UniversalSignup() {
                 <input required type="text" value={state} onChange={(e) => setState(e.target.value)} placeholder="State" className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
               </div>
 
-              <button type="submit" disabled={loading} className="w-full bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50 mt-6">
-                {loading ? 'Sending Link...' : 'Sign Up & Verify Email'}
+              <button type="submit" disabled={loading} className="w-full bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50 mt-6 flex items-center justify-center gap-2">
+                {loading ? <Loader2 className="animate-spin" size={20} /> : 'Sign Up & Verify Email'}
               </button>
             </form>
           </>
