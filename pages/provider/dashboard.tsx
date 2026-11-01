@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Head from 'next/head';
 import { supabase } from '../../lib/supabase';
 import BottomNav from '../../components/BottomNav';
-import { Plus, Package, TrendingUp, CheckCircle, Upload, X, Image as ImageIcon, User, MessageSquare, Shield, AlertTriangle } from 'lucide-react';
+import { Plus, Package, TrendingUp, CheckCircle, Upload, X, Image as ImageIcon, User, MessageSquare, Shield, AlertTriangle, Loader2 } from 'lucide-react';
 
 export default function ProviderDashboard() {
   const router = useRouter();
@@ -40,7 +40,7 @@ export default function ProviderDashboard() {
   const [quoteFile, setQuoteFile] = useState<File | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
 
-  // 🔒 STRICT SECURITY CHECK: Uses window.location.href to force a hard browser reload
+  // 🔒 STRICT SECURITY CHECK
   useEffect(() => {
     async function checkAccess() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -55,13 +55,11 @@ export default function ProviderDashboard() {
         .eq('id', user.id)
         .single();
       
-      // THE STRICT GATE: If database says false, hard redirect immediately.
       if (!data?.can_publish && !data?.tpwecan_verified) {
         window.location.href = '/provider/verify'; 
         return;
       }
 
-      // Only load dashboard if verified
       if (data.avatar_url) setProfilePreview(data.avatar_url);
       setIsVerified(true);
       fetchMyListings();
@@ -70,11 +68,26 @@ export default function ProviderDashboard() {
     checkAccess();
   }, []);
 
+  // ✅ FIXED: Robust fetch with error logging so it never fails silently
   async function fetchMyListings() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data } = await supabase.from('products').select('*').eq('seller_id', user.id).order('created_at', { ascending: false });
-    if (data) setMyListings(data);
+    
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('seller_id', user.id)
+      .order('created_at', { ascending: false });
+      
+    if (error) {
+      console.error("❌ Error fetching listings:", error);
+      return;
+    }
+    
+    if (data) {
+      console.log("✅ Successfully fetched listings:", data);
+      setMyListings(data);
+    }
   }
 
   async function fetchRequests() {
@@ -165,6 +178,7 @@ export default function ProviderDashboard() {
     }
   }
 
+  // ✅ FIXED: Payload now matches the exact database column names (condition_type, model_number)
   async function handlePublish(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -188,19 +202,32 @@ export default function ProviderDashboard() {
       }
 
       const { error } = await supabase.from('products').insert([{
-        seller_id: user.id, name, price: parseFloat(price), category, type, description,
-        condition: type === 'Buy' ? condition : null, model_no: type === 'Buy' ? modelNo : null,
+        seller_id: user.id, 
+        name, 
+        price: parseFloat(price), 
+        category, 
+        type, 
+        description,
+        condition_type: type === 'Buy' ? condition : null, // FIXED: was 'condition'
+        model_number: type === 'Buy' ? modelNo : null,     // FIXED: was 'model_no'
         year_manufactured: type === 'Buy' ? (yearManufactured ? parseInt(yearManufactured) : null) : null,
-        images: imageUrls, seller_name: sellerName, seller_logo: sellerLogo, location: 'Lagos, Nigeria',
+        images: imageUrls, 
+        seller_name: sellerName, 
+        seller_logo: sellerLogo, 
+        location: 'Lagos, Nigeria',
       }]);
 
       if (error) throw error;
+      
       setMessage('✅ Service published successfully!');
       setName(''); setPrice(''); setDescription(''); setModelNo(''); setYearManufactured('');
       setSelectedFiles([]); setPreviewUrls([]); setShowForm(false);
-      fetchMyListings();
+      
+      // Force a fresh fetch immediately after publishing
+      await fetchMyListings(); 
       setTimeout(() => setMessage(''), 3000);
     } catch (error: any) {
+      console.error("Publish Error:", error);
       setMessage('❌ Error: ' + error.message);
     } finally {
       setLoading(false);
@@ -257,12 +284,12 @@ export default function ProviderDashboard() {
           </div>
           <div className="bg-[#1E293B] p-4 rounded-2xl border border-white/10">
             <MessageSquare className="text-[#ccff00] mb-2" size={24} />
-            <p className="text-2xl font-black">{requests.filter(r => r.status === 'pending' || r.status === 'negotiating').length}</p>
+            <p className="text-2xl font-black">{requests.filter((r: any) => r.status === 'pending' || r.status === 'negotiating').length}</p>
             <p className="text-xs text-slate-400">Pending Actions</p>
           </div>
         </div>
 
-        {/* PUBLISH FORM (Only visible if the strict check passed and isVerified is true) */}
+        {/* PUBLISH FORM */}
         {isVerified && (
           !showForm ? (
             <button onClick={() => setShowForm(true)} className="w-full flex items-center justify-center gap-2 bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-2xl hover:scale-[1.02] transition-all shadow-lg shadow-[#ccff00]/20">
@@ -287,8 +314,27 @@ export default function ProviderDashboard() {
                     <option value="Book">Book a Service</option><option value="Buy">Sell a Product</option>
                   </select>
                 </div>
+                
+                {/* Image Upload Preview */}
+                {previewUrls.length > 0 && (
+                  <div className="grid grid-cols-4 gap-2">
+                    {previewUrls.map((url, i) => (
+                      <div key={i} className="relative">
+                        <img src={url} alt="Preview" className="w-full h-20 object-cover rounded-lg border border-white/10" />
+                        <button type="button" onClick={() => removeImage(i)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600">
+                          <X size={12} />
+                        </button>
+              </div>
+                    ))}
+                  </div>
+                )}
+                <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-white/20 rounded-xl p-4 text-center cursor-pointer hover:bg-white/5 transition-colors">
+                  <p className="text-sm text-slate-300 font-bold">📸 Click to Upload Images ({previewUrls.length}/8)</p>
+                  <input ref={fileInputRef} type="file" multiple accept="image/*" onChange={handleFileChange} className="hidden" />
+                </div>
+
                 <button type="submit" disabled={loading} className="w-full bg-[#ccff00] text-[#0F172A] font-black py-3 rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                  {loading ? 'Uploading...' : 'Publish to Marketplace'}
+                  {loading ? <><Loader2 className="animate-spin" size={18} /> Publishing...</> : 'Publish to Marketplace'}
                 </button>
               </form>
             </div>
@@ -373,7 +419,11 @@ export default function ProviderDashboard() {
             <div className="space-y-3">
               {myListings.map((item: any) => (
                 <div key={item.id} className="bg-[#1E293B] p-4 rounded-2xl border border-white/10 flex gap-4 items-center">
-                  {item.images && item.images.length > 0 ? <img src={item.images[0]} alt={item.name} className="w-16 h-16 rounded-xl object-cover" /> : <div className="w-16 h-16 rounded-xl bg-white/5 flex items-center justify-center"><ImageIcon className="text-slate-500" size={24} /></div>}
+                  {item.images && item.images.length > 0 ? (
+                    <img src={item.images[0]} alt={item.name} className="w-16 h-16 rounded-xl object-cover border border-white/10" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-xl bg-white/5 flex items-center justify-center"><ImageIcon className="text-slate-500" size={24} /></div>
+                  )}
                   <div className="flex-1">
                     <h3 className="font-bold text-white">{item.name}</h3>
                     <p className="text-xs text-slate-400">{item.category} • {item.type}</p>
