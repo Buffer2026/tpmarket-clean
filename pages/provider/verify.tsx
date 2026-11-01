@@ -1,104 +1,134 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { supabase } from '../../lib/supabase'; 
-import { Shield, ArrowLeft, Loader2 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import { Shield, ArrowLeft, Loader2, CheckCircle } from 'lucide-react';
 
 export default function TPwecanVerify() {
   const router = useRouter();
   const [tpwecanId, setTpwecanId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  // Check if already verified - if yes, skip to dashboard
+  useEffect(() => {
+    async function checkIfAlreadyVerified() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data } = await supabase
+        .from('profiles')
+        .select('tpwecan_verified, can_publish, role')
+        .eq('id', user.id)
+        .single();
+
+      if (data?.tpwecan_verified || data?.can_publish || data?.role === 'provider') {
+        router.replace('/provider/dashboard');
+      }
+    }
+    checkIfAlreadyVerified();
+  }, [router]);
 
   async function handleVerify(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError('');
 
-    // 1. Get current logged-in user
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { 
-      alert('Please sign in first.'); 
-      router.push('/signin');
-      return; 
+    if (!user) {
+      setError('Please sign in first.');
+      setLoading(false);
+      return;
     }
 
-    // 2. Get user's profile name from the database
-    const { data: profile, error: profileError } = await supabase
+    // Get user's profile name
+    const { data: profile } = await supabase
       .from('profiles')
       .select('full_name')
       .eq('id', user.id)
       .single();
 
-    if (profileError || !profile) {
-      setError('Could not load your profile. Please try logging in again.');
-      setLoading(false);
-      return;
-    }
-
-    // 3. SAFETY NET: If name is missing, prompt the user to enter it
-    let userName = profile.full_name?.trim().toLowerCase();
-    if (!userName || userName === 'unknown user') {
-      const newName = window.prompt('To verify, we need your full name. Please enter it EXACTLY as it appears on your TPwecan registration:');
-      
-      if (!newName || newName.trim() === '') {
-        setError('Verification cancelled. Name is required.');
+    if (!profile?.full_name) {
+      const newName = window.prompt('Please enter your full name exactly as registered with TPwecan:');
+      if (!newName) {
+        setError('Name is required.');
         setLoading(false);
         return;
       }
-      
-      // Save the corrected name to the database automatically
-      const formattedName = newName.trim();
-      await supabase.from('profiles').update({ full_name: formattedName }).eq('id', user.id);
-      userName = formattedName.toLowerCase();
+      await supabase.from('profiles').update({ full_name: newName.trim() }).eq('id', user.id);
+      profile.full_name = newName.trim();
     }
 
     const enteredId = tpwecanId.trim().toUpperCase();
+    const userName = profile.full_name.trim().toLowerCase();
 
-    // 4. CHECK TPWECAN DATABASE FOR THE ID
+    // Check TPwecan database
     const { data: member, error: memberError } = await supabase
       .from('tpwecan_members')
       .select('full_name')
       .eq('tpwecan_id', enteredId)
       .single();
 
-    // RUTHLESS CHECK 1: ID MUST EXIST
     if (memberError || !member) {
-      setError(`❌ BLOCKED!\nThe ID "${enteredId}" does not exist in our TPwecan database.`);
-      setLoading(false);
-      return; 
-    }
-
-    // RUTHLESS CHECK 2: NAMES MUST MATCH EXACTLY (Case-insensitive)
-    const tpwecanName = member.full_name.trim().toLowerCase();
-    if (tpwecanName !== userName) {
-      setError(`❌ BLOCKED! Name mismatch.\n\nYour Profile Name: "${profile.full_name}"\nTPwecan Registered Name: "${member.full_name}"\n\nPlease ensure both names match exactly, then try again.`);
+      setError(`❌ BLOCKED! ID "${enteredId}" not found in TPwecan database.`);
       setLoading(false);
       return;
     }
 
-    // 5. SUCCESS! UPGRADE USER TO PROVIDER AND GIVE THEM PUBLISH RIGHTS
-    await supabase.from('profiles').update({ 
-      role: 'provider', 
-      tpwecan_verified: true, 
-      tpwecan_id: enteredId,
-      can_publish: true // <--- THIS IS THE MAGIC KEY THAT STOPS THE LOOPING!
-    }).eq('id', user.id);
+    const tpwecanName = member.full_name.trim().toLowerCase();
+    if (tpwecanName !== userName) {
+      setError(`❌ BLOCKED! Name mismatch.\n\nYour Name: "${profile.full_name}"\nTPwecan Name: "${member.full_name}"`);
+      setLoading(false);
+      return;
+    }
 
-    alert('✅ SUCCESS! You are now a verified Provider.');
-    router.replace('/provider/dashboard');
+    // ✅ SUCCESS - Update profile with ALL verification flags
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ 
+        tpwecan_verified: true,
+        can_publish: true,
+        role: 'provider',
+        tpwecan_id: enteredId
+      })
+      .eq('id', user.id);
+
+    if (updateError) {
+      setError('Error saving verification: ' + updateError.message);
+      setLoading(false);
+      return;
+    }
+
+    // Show success and redirect
+    setSuccess(true);
+    setTimeout(() => {
+      router.replace('/provider/dashboard');
+    }, 2000);
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-6">
+        <div className="text-center">
+          <CheckCircle className="text-[#ccff00] mx-auto mb-4" size={64} />
+          <h1 className="text-2xl font-black text-white mb-2">✅ SUCCESS!</h1>
+          <p className="text-slate-400">You are now verified. Redirecting...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-6">
-      <div className="w-full max-w-md bg-[#1E293B] rounded-3xl p-8 border border-white/10 shadow-2xl">
-        <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-400 mb-6 hover:text-white transition-colors">
-          <ArrowLeft size={16} /> Back to Dashboard
+      <div className="w-full max-w-md bg-[#1E293B] rounded-3xl p-8 border border-white/10">
+        <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-400 mb-6 hover:text-white">
+          <ArrowLeft size={16} /> Back
         </button>
         
         <div className="text-center mb-6">
           <Shield className="text-[#ccff00] mx-auto mb-4" size={48} />
-          <h1 className="text-2xl font-black text-white">Provider Verification</h1>
-          <p className="text-slate-400 text-sm mt-2">Enter your TPwecan ID. Your profile name must match your TPwecan registration exactly.</p>
+          <h1 className="text-2xl font-black text-white">TPwecan Verification</h1>
+          <p className="text-slate-400 text-sm mt-2">Enter your TPwecan ID to verify your provider account.</p>
         </div>
 
         <form onSubmit={handleVerify} className="space-y-4">
@@ -107,10 +137,10 @@ export default function TPwecanVerify() {
             value={tpwecanId}
             onChange={(e) => {
               setTpwecanId(e.target.value);
-              setError(''); // Clear error when typing
+              setError('');
             }}
             placeholder="e.g. WCN-A4EB6A26"
-            className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-4 px-4 text-white placeholder:text-slate-500 focus:border-[#ccff00] focus:outline-none uppercase font-mono tracking-wider"
+            className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-4 px-4 text-white uppercase font-mono tracking-wider focus:border-[#ccff00] focus:outline-none"
             required
           />
           
@@ -123,9 +153,9 @@ export default function TPwecanVerify() {
           <button 
             type="submit" 
             disabled={loading || !tpwecanId} 
-            className="w-full bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {loading ? <Loader2 className="animate-spin" size={20} /> : 'Verify TPwecan ID'}
+            {loading ? <Loader2 className="animate-spin" size={20} /> : 'Verify ID'}
           </button>
         </form>
       </div>

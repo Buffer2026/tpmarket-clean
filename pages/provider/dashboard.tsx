@@ -16,6 +16,7 @@ export default function ProviderDashboard() {
   
   // Verification state
   const [isVerified, setIsVerified] = useState(false); 
+  const [isChecking, setIsChecking] = useState(true); // NEW: Prevents flashing/redirect loops
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Publish Form States
@@ -40,7 +41,7 @@ export default function ProviderDashboard() {
   const [quoteFile, setQuoteFile] = useState<File | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
 
-  // 🔒 STRICT SECURITY CHECK
+  // 🔒 IMPROVED SECURITY CHECK: Prevents flashing by waiting for data
   useEffect(() => {
     async function checkAccess() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -49,26 +50,40 @@ export default function ProviderDashboard() {
         return;
       }
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
-        .select('can_publish, tpwecan_verified, avatar_url, full_name')
+        .select('can_publish, tpwecan_verified, role, avatar_url, full_name')
         .eq('id', user.id)
         .single();
       
-      if (!data?.can_publish && !data?.tpwecan_verified) {
+      console.log("🔒 Dashboard Access Check:", data, error);
+
+      if (error || !data) {
+        console.error("Error fetching profile:", error);
+        setIsChecking(false); // Stop loading to prevent infinite redirect loop
+        return;
+      }
+
+      // Allow access if ANY of these verification flags are true
+      const isAllowed = data.can_publish === true || data.tpwecan_verified === true || data.role === 'provider';
+
+      if (!isAllowed) {
+        console.log("⛔ Access Denied. Redirecting to verify...");
         window.location.href = '/provider/verify'; 
         return;
       }
 
       if (data.avatar_url) setProfilePreview(data.avatar_url);
       setIsVerified(true);
+      setIsChecking(false); // Stop loading, show dashboard
+      
       fetchMyListings();
       fetchRequests(); 
     }
     checkAccess();
   }, []);
 
-  // ✅ FIXED: Robust fetch with error logging so it never fails silently
+  // ✅ Robust fetch with error logging
   async function fetchMyListings() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -178,7 +193,7 @@ export default function ProviderDashboard() {
     }
   }
 
-  // ✅ FIXED: Payload now matches the exact database column names (condition_type, model_number)
+  // ✅ FIXED: Payload matches exact DB columns + Detailed logging
   async function handlePublish(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -187,6 +202,7 @@ export default function ProviderDashboard() {
     if (!user) { setMessage('Please sign in first.'); setLoading(false); return; }
 
     try {
+      console.log("📦 Starting publish process...");
       const { data: profileData } = await supabase.from('profiles').select('avatar_url, full_name').eq('id', user.id).single();
       const sellerLogo = profileData?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=ccff00&color=0F172A`;
       const sellerName = profileData?.full_name || user.email;
@@ -195,35 +211,46 @@ export default function ProviderDashboard() {
       for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
         const filePath = `${user.id}/${Date.now()}_${i}_${file.name}`;
+        console.log("⬆️ Uploading image:", filePath);
         const { error: uploadError } = await supabase.storage.from('product-images').upload(filePath, file);
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+            console.error("Upload Error:", uploadError);
+            throw uploadError;
+        }
         const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(filePath);
         imageUrls.push(publicUrl);
       }
 
-      const { error } = await supabase.from('products').insert([{
+      const payload = {
         seller_id: user.id, 
         name, 
         price: parseFloat(price), 
         category, 
         type, 
         description,
-        condition_type: type === 'Buy' ? condition : null, // FIXED: was 'condition'
-        model_number: type === 'Buy' ? modelNo : null,     // FIXED: was 'model_no'
+        condition_type: type === 'Buy' ? condition : null, // Matches DB exactly
+        model_number: type === 'Buy' ? modelNo : null,     // Matches DB exactly
         year_manufactured: type === 'Buy' ? (yearManufactured ? parseInt(yearManufactured) : null) : null,
         images: imageUrls, 
         seller_name: sellerName, 
         seller_logo: sellerLogo, 
         location: 'Lagos, Nigeria',
-      }]);
+      };
 
-      if (error) throw error;
+      console.log("💾 Inserting into database with payload:", payload);
+
+      const { data: insertData, error } = await supabase.from('products').insert([payload]).select();
+
+      if (error) {
+          console.error("❌ Database Insert Error:", error);
+          throw error;
+      }
       
+      console.log("✅ Successfully inserted:", insertData);
       setMessage('✅ Service published successfully!');
       setName(''); setPrice(''); setDescription(''); setModelNo(''); setYearManufactured('');
       setSelectedFiles([]); setPreviewUrls([]); setShowForm(false);
       
-      // Force a fresh fetch immediately after publishing
       await fetchMyListings(); 
       setTimeout(() => setMessage(''), 3000);
     } catch (error: any) {
@@ -249,6 +276,16 @@ export default function ProviderDashboard() {
       setProfileMessage('✅ Profile photo updated!');
       setTimeout(() => setProfileMessage(''), 3000);
     }
+  }
+
+  // Show loading spinner while checking access (prevents the flash)
+  if (isChecking) {
+    return (
+      <div className="min-h-screen bg-[#0F172A] flex items-center justify-center text-white">
+        <Loader2 className="animate-spin text-[#ccff00]" size={48} />
+        <p className="ml-3 font-bold">Verifying access...</p>
+      </div>
+    );
   }
 
   return (
@@ -324,7 +361,7 @@ export default function ProviderDashboard() {
                         <button type="button" onClick={() => removeImage(i)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600">
                           <X size={12} />
                         </button>
-              </div>
+                      </div>
                     ))}
                   </div>
                 )}
