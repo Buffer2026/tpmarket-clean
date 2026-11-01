@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
-import { supabase } from '../../lib/supabase'; // Adjust path if needed
+import { supabase } from '../../lib/supabase'; 
 import { Shield, ArrowLeft, Loader2 } from 'lucide-react';
 
 export default function TPwecanVerify() {
@@ -76,11 +76,12 @@ export default function TPwecanVerify() {
       return;
     }
 
-    // 5. SUCCESS! UPGRADE USER TO PROVIDER
+    // 5. SUCCESS! UPGRADE USER TO PROVIDER AND GIVE THEM PUBLISH RIGHTS
     await supabase.from('profiles').update({ 
       role: 'provider', 
       tpwecan_verified: true, 
-      tpwecan_id: enteredId 
+      tpwecan_id: enteredId,
+      can_publish: true // <--- THIS IS THE MAGIC KEY THAT STOPS THE LOOPING!
     }).eq('id', user.id);
 
     alert('✅ SUCCESS! You are now a verified Provider.');
