@@ -23,10 +23,7 @@ export default function ProviderVerify() {
         .single();
 
       // Only redirect if they are TRULY verified in the master list
-      if (data?.tpwecan_verified) {
-        router.replace('/provider/dashboard');
-      }
-    }
+     
     checkIfAlreadyVerified();
   }, [router]);
 
