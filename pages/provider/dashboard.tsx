@@ -16,7 +16,7 @@ export default function ProviderDashboard() {
   
   // Verification state
   const [isVerified, setIsVerified] = useState(false); 
-  const [isChecking, setIsChecking] = useState(true); // NEW: Prevents flashing/redirect loops
+  const [isChecking, setIsChecking] = useState(true); 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Publish Form States
@@ -41,61 +41,67 @@ export default function ProviderDashboard() {
   const [quoteFile, setQuoteFile] = useState<File | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
 
-  // 🔒 FIXED SECURITY CHECK: Now checks the master tpwecan_members table
+  // 🔒 ULTIMATE SECURITY CHECK: Bulletproof verification
   useEffect(() => {
+    let isMounted = true;
+
     async function checkAccess() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        window.location.href = '/signin';
+        if (isMounted) router.replace('/signin');
         return;
       }
 
-      // FIX 1: Added 'tpwecan_id' to the select query so we can actually check it!
-      const { data, error } = await supabase
+      console.log("🔒 Checking access for user:", user.email);
+
+      // 1. Check Profile
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('can_publish, tpwecan_verified, role, avatar_url, full_name, tpwecan_id')
+        .select('tpwecan_id, tpwecan_verified')
         .eq('id', user.id)
         .single();
-      
-      console.log("🔒 Dashboard Access Check:", data, error);
 
-      // FIX 2: If profile doesn't exist, KICK THEM OUT immediately instead of just returning.
-      if (error || !data) {
-        console.error("Error fetching profile:", error);
-        window.location.href = '/provider/verify'; 
+      if (profileError || !profile) {
+        console.log("⛔ BLOCKED: No profile found or error:", profileError);
+        if (isMounted) router.replace('/provider/verify');
         return;
       }
 
-      // FIX 3: The Ultimate Gatekeeper - Check the master tpwecan_members table
-      if (data.tpwecan_id) {
-        const { data: member, error: memberError } = await supabase
-          .from('tpwecan_members')
-          .select('id')
-          .eq('tpwecan_id', data.tpwecan_id)
-          .single();
+      console.log("📝 Profile TPwecan ID:", profile.tpwecan_id);
 
-        // If their ID is NOT in the master list, KICK THEM OUT.
-        if (memberError || !member) {
-          console.log("⛔ TPwecan ID not found in master members list. Redirecting...");
-          window.location.href = '/provider/verify';
-          return;
-        }
-      } else {
-        // They don't even have a TPwecan ID saved in their profile. KICK THEM OUT.
-        console.log("⛔ No TPwecan ID in profile. Redirecting...");
-        window.location.href = '/provider/verify';
+      if (!profile.tpwecan_id) {
+        console.log("⛔ BLOCKED: Profile has no TPwecan ID.");
+        if (isMounted) router.replace('/provider/verify');
         return;
       }
 
-      // If we pass BOTH checks, they are legitimate. Let them in.
-      if (data.avatar_url) setProfilePreview(data.avatar_url);
-      setIsVerified(true);
-      setIsChecking(false); // Stop loading, show dashboard
-      
-      fetchMyListings();
-      fetchRequests(); 
+      // 2. Check Master List
+      const { data: member, error: memberError } = await supabase
+        .from('tpwecan_members')
+        .select('id, tpwecan_id')
+        .eq('tpwecan_id', profile.tpwecan_id)
+        .single();
+
+      console.log("🔍 Master List Check Result:", member, memberError);
+
+      if (memberError || !member) {
+        console.log("⛔ BLOCKED: TPwecan ID NOT found in tpwecan_members table.");
+        if (isMounted) router.replace('/provider/verify');
+        return;
+      }
+
+      // 3. Grant Access
+      console.log("✅ ACCESS GRANTED: User is a verified TPwecan member.");
+      if (isMounted) {
+        setIsVerified(true);
+        setIsChecking(false);
+        fetchMyListings();
+        fetchRequests();
+      }
     }
+
     checkAccess();
+    return () => { isMounted = false; };
   }, []);
 
   // ✅ Robust fetch with error logging
@@ -208,7 +214,6 @@ export default function ProviderDashboard() {
     }
   }
 
-  // ✅ FIXED: Payload matches exact DB columns + Detailed logging
   async function handlePublish(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -243,8 +248,8 @@ export default function ProviderDashboard() {
         category, 
         type, 
         description,
-        condition_type: type === 'Buy' ? condition : null, // Matches DB exactly
-        model_number: type === 'Buy' ? modelNo : null,     // Matches DB exactly
+        condition_type: type === 'Buy' ? condition : null,
+        model_number: type === 'Buy' ? modelNo : null,
         year_manufactured: type === 'Buy' ? (yearManufactured ? parseInt(yearManufactured) : null) : null,
         images: imageUrls, 
         seller_name: sellerName, 
@@ -293,12 +298,15 @@ export default function ProviderDashboard() {
     }
   }
 
-  // Show loading spinner while checking access (prevents the flash)
-  if (isChecking) {
+  // 🔒 HARD UI BLOCK: If checking OR not verified, show NOTHING but the loader.
+  if (isChecking || !isVerified) {
     return (
       <div className="min-h-screen bg-[#0F172A] flex items-center justify-center text-white">
-        <Loader2 className="animate-spin text-[#ccff00]" size={48} />
-        <p className="ml-3 font-bold">Verifying access...</p>
+        <div className="text-center">
+          <Loader2 className="animate-spin text-[#ccff00] mx-auto mb-4" size={48} />
+          <p className="font-bold text-lg">Verifying TPwecan Membership...</p>
+          <p className="text-sm text-slate-400 mt-2">Only verified members can access this dashboard.</p>
+        </div>
       </div>
     );
   }
