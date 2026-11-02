@@ -24,12 +24,13 @@ export default function UniversalSignup() {
       const { error } = await supabase.auth.signInWithOtp({
         email: email,
         options: {
-          shouldCreateUser: true, // <-- THIS IS THE MISSING KEY! It forces the trigger to fire.
+          shouldCreateUser: true, 
           data: {
             full_name: fullName,
             phone: phone,
             country: country,
             state: state,
+            role: 'customer', // <-- THIS IS THE ONLY CHANGE: Explicitly sets the role to pass the database check
           },
           emailRedirectTo: typeof window !== 'undefined' 
             ? `${window.location.origin}/dashboard` 
