@@ -58,9 +58,10 @@ export default function ProviderDashboard() {
       
       console.log("🔒 Dashboard Access Check:", data, error);
 
-      if (error || !data) {
+            if (error || !data) {
         console.error("Error fetching profile:", error);
-        setIsChecking(false); // Stop loading to prevent infinite redirect loop
+        console.log("⛔ No profile found. Redirecting to verify...");
+        window.location.href = '/provider/verify'; // <-- ADD THIS LINE
         return;
       }
 
