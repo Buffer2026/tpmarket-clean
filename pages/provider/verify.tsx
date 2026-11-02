@@ -3,13 +3,14 @@ import { useRouter } from 'next/router';
 import { supabase } from '../../lib/supabase';
 import { Shield, ArrowLeft, Loader2, CheckCircle } from 'lucide-react';
 
-export default function TPwecanVerify() {
+export default function ProviderVerify() {
   const router = useRouter();
   const [tpwecanId, setTpwecanId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
+  // Check if already verified - if yes, skip to dashboard
   useEffect(() => {
     async function checkIfAlreadyVerified() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -21,7 +22,8 @@ export default function TPwecanVerify() {
         .eq('id', user.id)
         .single();
 
-      if (data?.tpwecan_verified || data?.can_publish || data?.role === 'provider') {
+      // Only redirect if they are TRULY verified in the master list
+      if (data?.tpwecan_verified) {
         router.replace('/provider/dashboard');
       }
     }
@@ -40,6 +42,7 @@ export default function TPwecanVerify() {
       return;
     }
 
+    // Get user's profile name
     const { data: profile } = await supabase
       .from('profiles')
       .select('full_name')
@@ -60,34 +63,29 @@ export default function TPwecanVerify() {
     const enteredId = tpwecanId.trim().toUpperCase();
     const userName = profile.full_name.trim().toLowerCase();
 
-    console.log("🕵️‍♂️ DEBUG: Checking database for ID:", enteredId);
-
-    // Check TPwecan database
+    // STRICT CHECK: Query the tpwecan_members table
     const { data: member, error: memberError } = await supabase
       .from('tpwecan_members')
-      .select('*') // Selected * to see exactly what the database returns
+      .select('full_name')
       .eq('tpwecan_id', enteredId)
       .single();
 
-    console.log("📊 DEBUG: Database Response:", { member, memberError });
-
+    // If the ID is not in the database, BLOCK THEM.
     if (memberError || !member) {
-      console.log("❌ DEBUG: Blocked because member was not found.");
-      setError(`❌ BLOCKED! ID "${enteredId}" not found in TPwecan database.`);
+      setError(`❌ BLOCKED! ID "${enteredId}" is not a valid TPwecan ID.`);
       setLoading(false);
       return;
     }
 
+    // Check if the name matches exactly
     const tpwecanName = member.full_name ? member.full_name.trim().toLowerCase() : '';
     if (tpwecanName !== userName) {
-      console.log("❌ DEBUG: Blocked because of name mismatch.");
-      setError(`❌ BLOCKED! Name mismatch.\n\nYour Name: "${profile.full_name}"\nTPwecan Name: "${member.full_name || 'Unknown'}"`);
+      setError(`❌ BLOCKED! Name mismatch.\n\nYour Name: "${profile.full_name}"\nTPwecan Name: "${member.full_name}"`);
       setLoading(false);
       return;
     }
 
-    console.log("✅ DEBUG: Verification successful! Updating profile...");
-
+    // SUCCESS: Update profile
     const { error: updateError } = await supabase
       .from('profiles')
       .update({ 
