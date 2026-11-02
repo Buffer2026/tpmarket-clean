@@ -10,7 +10,6 @@ export default function TPwecanVerify() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
-  // Check if already verified - if yes, skip to dashboard
   useEffect(() => {
     async function checkIfAlreadyVerified() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -41,7 +40,6 @@ export default function TPwecanVerify() {
       return;
     }
 
-    // Get user's profile name
     const { data: profile } = await supabase
       .from('profiles')
       .select('full_name')
@@ -62,27 +60,34 @@ export default function TPwecanVerify() {
     const enteredId = tpwecanId.trim().toUpperCase();
     const userName = profile.full_name.trim().toLowerCase();
 
+    console.log("🕵️‍♂️ DEBUG: Checking database for ID:", enteredId);
+
     // Check TPwecan database
     const { data: member, error: memberError } = await supabase
       .from('tpwecan_members')
-      .select('full_name')
+      .select('*') // Selected * to see exactly what the database returns
       .eq('tpwecan_id', enteredId)
       .single();
 
+    console.log("📊 DEBUG: Database Response:", { member, memberError });
+
     if (memberError || !member) {
+      console.log("❌ DEBUG: Blocked because member was not found.");
       setError(`❌ BLOCKED! ID "${enteredId}" not found in TPwecan database.`);
       setLoading(false);
       return;
     }
 
-    const tpwecanName = member.full_name.trim().toLowerCase();
+    const tpwecanName = member.full_name ? member.full_name.trim().toLowerCase() : '';
     if (tpwecanName !== userName) {
-      setError(`❌ BLOCKED! Name mismatch.\n\nYour Name: "${profile.full_name}"\nTPwecan Name: "${member.full_name}"`);
+      console.log("❌ DEBUG: Blocked because of name mismatch.");
+      setError(`❌ BLOCKED! Name mismatch.\n\nYour Name: "${profile.full_name}"\nTPwecan Name: "${member.full_name || 'Unknown'}"`);
       setLoading(false);
       return;
     }
 
-    // ✅ SUCCESS - Update profile with ALL verification flags
+    console.log("✅ DEBUG: Verification successful! Updating profile...");
+
     const { error: updateError } = await supabase
       .from('profiles')
       .update({ 
@@ -99,7 +104,6 @@ export default function TPwecanVerify() {
       return;
     }
 
-    // Show success and redirect
     setSuccess(true);
     setTimeout(() => {
       router.replace('/provider/dashboard');
