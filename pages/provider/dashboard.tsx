@@ -41,7 +41,7 @@ export default function ProviderDashboard() {
   const [quoteFile, setQuoteFile] = useState<File | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
 
-  // 🔒 IMPROVED SECURITY CHECK: Prevents flashing by waiting for data
+  // 🔒 FIXED SECURITY CHECK: Now checks the master tpwecan_members table
   useEffect(() => {
     async function checkAccess() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -50,30 +50,44 @@ export default function ProviderDashboard() {
         return;
       }
 
+      // FIX 1: Added 'tpwecan_id' to the select query so we can actually check it!
       const { data, error } = await supabase
         .from('profiles')
-        .select('can_publish, tpwecan_verified, role, avatar_url, full_name')
+        .select('can_publish, tpwecan_verified, role, avatar_url, full_name, tpwecan_id')
         .eq('id', user.id)
         .single();
       
       console.log("🔒 Dashboard Access Check:", data, error);
 
-            if (error || !data) {
+      // FIX 2: If profile doesn't exist, KICK THEM OUT immediately instead of just returning.
+      if (error || !data) {
         console.error("Error fetching profile:", error);
-        console.log("⛔ No profile found. Redirecting to verify...");
-        window.location.href = '/provider/verify'; // <-- ADD THIS LINE
-        return;
-      }
-
-      // Allow access if ANY of these verification flags are true
-      const isAllowed = data.can_publish === true || data.tpwecan_verified === true || data.role === 'provider';
-
-      if (!isAllowed) {
-        console.log("⛔ Access Denied. Redirecting to verify...");
         window.location.href = '/provider/verify'; 
         return;
       }
 
+      // FIX 3: The Ultimate Gatekeeper - Check the master tpwecan_members table
+      if (data.tpwecan_id) {
+        const { data: member, error: memberError } = await supabase
+          .from('tpwecan_members')
+          .select('id')
+          .eq('tpwecan_id', data.tpwecan_id)
+          .single();
+
+        // If their ID is NOT in the master list, KICK THEM OUT.
+        if (memberError || !member) {
+          console.log("⛔ TPwecan ID not found in master members list. Redirecting...");
+          window.location.href = '/provider/verify';
+          return;
+        }
+      } else {
+        // They don't even have a TPwecan ID saved in their profile. KICK THEM OUT.
+        console.log("⛔ No TPwecan ID in profile. Redirecting...");
+        window.location.href = '/provider/verify';
+        return;
+      }
+
+      // If we pass BOTH checks, they are legitimate. Let them in.
       if (data.avatar_url) setProfilePreview(data.avatar_url);
       setIsVerified(true);
       setIsChecking(false); // Stop loading, show dashboard
