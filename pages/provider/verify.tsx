@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '../../lib/supabase';
 import { Shield, ArrowLeft, Loader2, CheckCircle } from 'lucide-react';
@@ -9,23 +9,6 @@ export default function ProviderVerify() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-
-  // Check if already verified - if yes, skip to dashboard
-  useEffect(() => {
-    async function checkIfAlreadyVerified() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data } = await supabase
-        .from('profiles')
-        .select('tpwecan_verified, can_publish, role')
-        .eq('id', user.id)
-        .single();
-
-      // Only redirect if they are TRULY verified in the master list
-     
-    checkIfAlreadyVerified();
-  }, [router]);
 
   async function handleVerify(e: React.FormEvent) {
     e.preventDefault();
@@ -39,7 +22,6 @@ export default function ProviderVerify() {
       return;
     }
 
-    // Get user's profile name
     const { data: profile } = await supabase
       .from('profiles')
       .select('full_name')
@@ -54,27 +36,25 @@ export default function ProviderVerify() {
         return;
       }
       await supabase.from('profiles').update({ full_name: newName.trim() }).eq('id', user.id);
+      // @ts-ignore
       profile.full_name = newName.trim();
     }
 
     const enteredId = tpwecanId.trim().toUpperCase();
     const userName = profile.full_name.trim().toLowerCase();
 
-    // STRICT CHECK: Query the tpwecan_members table
     const { data: member, error: memberError } = await supabase
       .from('tpwecan_members')
       .select('full_name')
       .eq('tpwecan_id', enteredId)
       .single();
 
-    // If the ID is not in the database, BLOCK THEM.
     if (memberError || !member) {
       setError(`❌ BLOCKED! ID "${enteredId}" is not a valid TPwecan ID.`);
       setLoading(false);
       return;
     }
 
-    // Check if the name matches exactly
     const tpwecanName = member.full_name ? member.full_name.trim().toLowerCase() : '';
     if (tpwecanName !== userName) {
       setError(`❌ BLOCKED! Name mismatch.\n\nYour Name: "${profile.full_name}"\nTPwecan Name: "${member.full_name}"`);
@@ -82,7 +62,6 @@ export default function ProviderVerify() {
       return;
     }
 
-    // SUCCESS: Update profile
     const { error: updateError } = await supabase
       .from('profiles')
       .update({ 
