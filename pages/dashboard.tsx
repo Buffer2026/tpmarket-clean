@@ -35,10 +35,10 @@ export default function UniversalDashboard() {
     setLoading(false);
   }
 
-  // Simple, reliable navigation function for the TPwecan gate
+  // FIXED: Now routes verified users directly to the secure Provider Dashboard
   function handleSellClick() {
     if (profile?.tpwecan_verified) {
-      router.push('/provider/publish');
+      router.push('/provider/dashboard');
     } else {
       router.push('/tpwecan-verify');
     }
@@ -76,11 +76,11 @@ export default function UniversalDashboard() {
             <p className="text-xs text-slate-400 mt-1">Browse marketplace</p>
           </button>
 
-          {/* 2. Sell / Publish (GATED) */}
+          {/* 2. Sell / Publish (GATED - FIXED) */}
           <button onClick={handleSellClick} className="bg-[#1E293B] p-4 rounded-2xl border border-white/10 hover:border-[#ccff00]/50 transition-all text-left">
             <Wrench className="text-[#ccff00] mb-3" size={28} />
             <h3 className="font-bold text-white">{profile?.tpwecan_verified ? 'Publish Service' : 'Register TPwecan ID'}</h3>
-            <p className="text-xs text-slate-400 mt-1">{profile?.tpwecan_verified ? 'Go to publish page' : 'Unlock selling'}</p>
+            <p className="text-xs text-slate-400 mt-1">{profile?.tpwecan_verified ? 'Go to secure dashboard' : 'Unlock selling'}</p>
           </button>
 
           {/* 3. Register Equipment (NEW!) */}
