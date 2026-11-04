@@ -2,7 +2,17 @@ import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { supabase } from '../lib/supabase';
-import { CheckCircle, Loader2 } from 'lucide-react';
+import { CheckCircle, Loader2, Globe } from 'lucide-react';
+
+// The 50 Richest Countries (20 African, 20 European, 10 Asian)
+const COUNTRIES = [
+  // Africa (20)
+  "Nigeria", "Egypt", "South Africa", "Algeria", "Morocco", "Ethiopia", "Kenya", "Ghana", "Angola", "Tanzania", "Ivory Coast", "Uganda", "Senegal", "Cameroon", "Zambia", "Botswana", "Mauritius", "Namibia", "Seychelles", "Gabon",
+  // Europe (20)
+  "Germany", "United Kingdom", "France", "Italy", "Spain", "Netherlands", "Switzerland", "Poland", "Sweden", "Belgium", "Norway", "Austria", "Ireland", "Denmark", "Finland", "Portugal", "Greece", "Czech Republic", "Romania", "Hungary",
+  // Asia (10)
+  "China", "Japan", "India", "South Korea", "Indonesia", "Saudi Arabia", "United Arab Emirates", "Singapore", "Israel", "Turkey"
+];
 
 export default function UniversalSignup() {
   const router = useRouter();
@@ -30,7 +40,7 @@ export default function UniversalSignup() {
             phone: phone,
             country: country,
             state: state,
-            role: 'customer', // <-- THIS IS THE ONLY CHANGE: Explicitly sets the role to pass the database check
+            role: 'customer',
           },
           emailRedirectTo: typeof window !== 'undefined' 
             ? `${window.location.origin}/dashboard` 
@@ -87,16 +97,64 @@ export default function UniversalSignup() {
 
             {/* Email Form */}
             <form onSubmit={handleRegister} className="space-y-4">
-              <input required type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full Name" className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
-              <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email Address" className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
-              <input required type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone Number" className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
+              <input 
+                required 
+                type="text" 
+                value={fullName} 
+                onChange={(e) => setFullName(e.target.value)} 
+                placeholder="Full Name" 
+                className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" 
+              />
+              <input 
+                required 
+                type="email" 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)} 
+                placeholder="Email Address" 
+                className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" 
+              />
+              <input 
+                required 
+                type="tel" 
+                value={phone} 
+                onChange={(e) => setPhone(e.target.value)} 
+                placeholder="Phone Number (e.g. +234...)" 
+                className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" 
+              />
               
               <div className="grid grid-cols-2 gap-4">
-                <input type="text" value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Country" className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
-                <input required type="text" value={state} onChange={(e) => setState(e.target.value)} placeholder="State" className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" />
+                {/* Country Dropdown */}
+                <div className="relative">
+                  <Globe className="absolute left-4 top-3.5 text-slate-400 pointer-events-none" size={18} />
+                  <select 
+                    value={country} 
+                    onChange={(e) => setCountry(e.target.value)} 
+                    className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white focus:border-[#ccff00] focus:outline-none appearance-none cursor-pointer"
+                  >
+                    {COUNTRIES.map((c) => (
+                      <option key={c} value={c} className="bg-[#0F172A] text-white">
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* State Input */}
+                <input 
+                  required 
+                  type="text" 
+                  value={state} 
+                  onChange={(e) => setState(e.target.value)} 
+                  placeholder="State / Region" 
+                  className="w-full bg-[#0F172A] border border-white/10 rounded-xl py-3 px-4 text-white focus:border-[#ccff00] focus:outline-none" 
+                />
               </div>
 
-              <button type="submit" disabled={loading} className="w-full bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50 mt-6 flex items-center justify-center gap-2">
+              <button 
+                type="submit" 
+                disabled={loading} 
+                className="w-full bg-[#ccff00] text-[#0F172A] font-black py-4 rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50 mt-6 flex items-center justify-center gap-2"
+              >
                 {loading ? <Loader2 className="animate-spin" size={20} /> : 'Sign Up & Verify Email'}
               </button>
             </form>
