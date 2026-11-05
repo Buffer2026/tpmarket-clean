@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Head from 'next/head';
 import { supabase } from '../lib/supabase';
 import BottomNav from '../components/BottomNav';
-import { ShoppingBag, Wrench, Truck, Briefcase, CreditCard, ShieldCheck, Settings, Plus } from 'lucide-react';
+import { ShoppingBag, Wrench, Truck, Briefcase, CreditCard, ShieldCheck, Settings, Plus, Globe, Plane } from 'lucide-react';
 
 export default function UniversalDashboard() {
   const router = useRouter();
@@ -117,6 +117,21 @@ export default function UniversalDashboard() {
             <h3 className="font-bold text-white">Payout Settings</h3>
             <p className="text-xs text-slate-400 mt-1">Add bank details</p>
           </button>
+
+          {/* 8. Global Dropshipping (NEW!) */}
+          <Link href="/provider/dropshipping" className="bg-[#1E293B] p-4 rounded-2xl border border-white/10 hover:border-[#ccff00]/50 transition-all text-left block">
+            <Globe className="text-[#ccff00] mb-3" size={28} />
+            <h3 className="font-bold text-white">Global Dropshipping</h3>
+            <p className="text-xs text-slate-400 mt-1">Sell without inventory</p>
+          </Link>
+
+          {/* 9. Export from Nigeria (NEW!) */}
+          <Link href="/provider/export" className="bg-[#1E293B] p-4 rounded-2xl border border-white/10 hover:border-[#ccff00]/50 transition-all text-left block">
+            <Plane className="text-[#ccff00] mb-3" size={28} />
+            <h3 className="font-bold text-white">Export from Nigeria</h3>
+            <p className="text-xs text-slate-400 mt-1">Reach global buyers</p>
+          </Link>
+
         </div>
       </div>
       <BottomNav />
