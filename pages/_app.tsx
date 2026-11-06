@@ -3,13 +3,18 @@ import Head from 'next/head';
 import '../styles/global.css';
 
 export default function App({ Component, pageProps }: AppProps) {
-  // We removed the routing logic from here to prevent redirect loops 
-  // and session race conditions. The callback.tsx file will handle it safely.
   return (
     <>
       <Head>
-        {/* This forces the browser to use your logo as the favicon */}
+        {/* Standard favicon for desktop */}
         <link rel="icon" href="/tpm-logo.png" />
+        
+        {/* Mobile-friendly favicon (Android & iOS respect this) */}
+        <link rel="apple-touch-icon" href="/tpm-logo.png" />
+        
+        {/* Makes the top browser bar match your app's dark theme */}
+        <meta name="theme-color" content="#0F172A" />
+        
         <title>TP Market</title>
       </Head>
       <Component {...pageProps} />
