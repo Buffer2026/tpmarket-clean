@@ -5,6 +5,24 @@ import { Send, Image, Bot, MapPin, Star, ShieldCheck, ArrowLeft, Loader2, Mic } 
 import { supabase } from '../lib/supabase';
 
 // ==========================================
+// TYPESCRIPT INTERFACE FOR MESSAGES
+// This tells Vercel exactly what properties a message can have.
+// ==========================================
+interface Message {
+  id: number;
+  sender: 'user' | 'ai';
+  text: string;
+  hasReferralCard?: boolean;
+  providers?: {
+    id: string;
+    providerName: string;
+    location: string;
+    rating: string;
+    specialty: string;
+  }[];
+}
+
+// ==========================================
 // SECURITY GUARDRAIL (The "Bouncer")
 // ==========================================
 const SENSITIVE_KEYWORDS = [
@@ -26,7 +44,8 @@ export default function AIAssist() {
   const [user, setUser] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const [messages, setMessages] = useState([
+  // Now typed with the Message interface!
+  const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
       sender: 'ai',
@@ -48,7 +67,6 @@ export default function AIAssist() {
   // LIVE DATABASE QUERIES (FETCHES MULTIPLE)
   // ==========================================
   async function fetchRealArtisans() {
-    // Fetch up to 3 verified TPwecan providers
     const { data, error } = await supabase
       .from('profiles')
       .select('full_name, id') 
@@ -57,9 +75,8 @@ export default function AIAssist() {
 
     if (error || !data || data.length === 0) return [];
     
-    // Map real data to our UI cards (Passing the ID is crucial for the buttons!)
     return data.map((p) => ({
-      id: p.id, // <--- THIS IS CRUCIAL FOR THE BUTTONS
+      id: p.id, 
       providerName: p.full_name || "Verified TPwecan Provider",
       location: "Nigeria (Verified)", 
       rating: "5.0/5 (TPwecan Certified)", 
@@ -87,7 +104,6 @@ export default function AIAssist() {
   async function getAIResponse(userText: string) {
     const text = userText.toLowerCase();
     
-    // Topic 1 & 2: Troubleshooting & Finding Artisans
     if (text.includes('mechanic') || text.includes('artisan') || text.includes('repair') || text.includes('quote') || text.includes('technician') || text.includes('another')) {
       const artisans = await fetchRealArtisans();
       
@@ -101,7 +117,6 @@ export default function AIAssist() {
       return { text: "I am currently searching for available TPwecan-certified artisans in your area. Please check back shortly as we onboard more professionals.", hasReferralCard: false };
     }
 
-    // Topic 3 & 4: Products & Accessories
     if (text.includes('buy') || text.includes('price') || text.includes('product') || text.includes('accessory')) {
       const keyword = text.replace('buy', '').replace('price', '').replace('product', '').trim() || 'part';
       const realProduct = await fetchRealProduct(keyword);
@@ -115,7 +130,6 @@ export default function AIAssist() {
       return { text: "I can help you find products on TP Market. Could you specify the exact make or model of the part you are looking for?", hasReferralCard: false };
     }
 
-    // Topic 1: General Troubleshooting
     if (text.includes('start') || text.includes('not working') || text.includes('broken')) {
       const artisans = await fetchRealArtisans();
       return { 
@@ -125,7 +139,6 @@ export default function AIAssist() {
       };
     }
 
-    // FALLBACK: Polite redirect
     return { 
       text: "I am specifically designed to help with:\n1️⃣ Equipment troubleshooting\n2️⃣ Finding TPwecan-profiled artisans\n3️⃣ Recommending equipment accessories\n4️⃣ Discussing TP Market products.\n\nCould you please ask a question related to one of these areas?", 
       hasReferralCard: false 
@@ -140,9 +153,8 @@ export default function AIAssist() {
       return;
     }
 
-    // SECURITY CHECK
     if (checkSecurityViolation(input)) {
-      const securityBlockMessage = { 
+      const securityBlockMessage: Message = { 
         id: Date.now(), 
         sender: 'ai', 
         text: "🔒 **Security Restriction:** I am only authorized to assist with equipment troubleshooting, spare parts discovery, and connecting you with TPwecan-certified professionals. I cannot discuss backend systems, administrative data, or internal platform information.",
@@ -153,7 +165,7 @@ export default function AIAssist() {
       return;
     }
 
-    const userMessage = { id: Date.now(), sender: 'user', text: input };
+    const userMessage: Message = { id: Date.now(), sender: 'user', text: input };
     setMessages((prev) => [...prev, userMessage]);
     const currentInput = input;
     setInput('');
@@ -165,7 +177,7 @@ export default function AIAssist() {
 
     const aiResponseData = await getAIResponse(currentInput);
     
-    const aiMessage = { 
+    const aiMessage: Message = { 
       id: Date.now() + 1, 
       sender: 'ai', 
       text: aiResponseData.text,
@@ -212,7 +224,7 @@ export default function AIAssist() {
             }`}>
               <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
               
-              {/* LIVE PROVIDER REFERRAL CARDS (Supports Multiple) */}
+              {/* LIVE PROVIDER REFERRAL CARDS */}
               {msg.hasReferralCard && msg.providers && msg.providers.map((provider, index) => (
                 <div key={index} className="mt-4 bg-[#0F172A] rounded-xl p-4 border border-[#ccff00]/40 shadow-[0_0_15px_rgba(204,255,0,0.1)]">
                   <div className="flex items-center gap-2 mb-3">
