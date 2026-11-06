@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Head from 'next/head';
 import { supabase } from '../lib/supabase';
 import BottomNav from '../components/BottomNav';
-import { ShoppingBag, Wrench, Truck, Briefcase, CreditCard, ShieldCheck, Settings, Plus, Globe, Plane } from 'lucide-react';
+import { ShoppingBag, Wrench, Truck, Briefcase, CreditCard, ShieldCheck, Settings, Plus, Globe, Plane, Bot } from 'lucide-react';
 
 export default function UniversalDashboard() {
   const router = useRouter();
@@ -130,6 +130,16 @@ export default function UniversalDashboard() {
             <Plane className="text-[#ccff00] mb-3" size={28} />
             <h3 className="font-bold text-white">Export from Nigeria</h3>
             <p className="text-xs text-slate-400 mt-1">Reach global buyers</p>
+          </Link>
+
+          {/* 10. TP AI Assist (NEW!) */}
+          <Link href="/ai-assist" className="relative bg-gradient-to-br from-[#1E293B] to-[#0F172A] p-4 rounded-2xl border border-[#ccff00]/30 hover:border-[#ccff00] hover:scale-[1.02] transition-all text-left block overflow-hidden group">
+            <div className="absolute top-0 right-0 bg-[#ccff00] text-[#0F172A] text-[9px] font-black px-2 py-0.5 rounded-bl-lg">
+              AI POWERED
+            </div>
+            <Bot className="text-[#ccff00] mb-3 group-hover:animate-pulse" size={28} />
+            <h3 className="font-bold text-white">TP AI Assist</h3>
+            <p className="text-xs text-slate-400 mt-1">Diagnose & Find Parts</p>
           </Link>
 
         </div>
