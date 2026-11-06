@@ -14,7 +14,7 @@ interface Message {
   imageUrl?: string;
   audioUrl?: string;
   hasReferralCard?: boolean;
-  directionList?: string[]; // The copyable technical steps
+  directionList?: string[]; 
   providers?: {
     id: string;
     providerName: string;
@@ -40,9 +40,20 @@ function checkSecurityViolation(text: string): boolean {
 }
 
 // ==========================================
-// GLOBAL TECHNICAL KNOWLEDGE ENGINE (Simulates Web Search)
+// EXPANDED GLOBAL TECHNICAL KNOWLEDGE ENGINE
 // ==========================================
 const GLOBAL_KNOWLEDGE_BASE: Record<string, { diagnosis: string; steps: string[] }> = {
+  car_smoke: {
+    diagnosis: "Global automotive databases indicate that black smoke from a gasoline engine (like a Camry) usually indicates a 'rich' fuel mixture (too much fuel, not enough air). Common culprits include a dirty air filter, leaking fuel injectors, or a faulty Mass Air Flow (MAF) sensor.",
+    steps: [
+      "1. Do not ignore black smoke; it can foul spark plugs and damage the catalytic converter.",
+      "2. Inspect and replace the engine air filter if it is dirty or clogged.",
+      "3. Check for vacuum leaks in the intake manifold hoses.",
+      "4. Use an OBD2 scanner to check for fuel trim codes (e.g., P0172 System Too Rich).",
+      "5. Inspect fuel injectors for leaks or sticking.",
+      "6. Clean or replace the Mass Air Flow (MAF) sensor and Oxygen (O2) sensors."
+    ]
+  },
   generator: {
     diagnosis: "Based on global technical databases, loud noises or shutdowns in generators are typically caused by loose mounting bolts, a failing muffler, low oil pressure, or internal engine bearing wear.",
     steps: [
@@ -54,7 +65,7 @@ const GLOBAL_KNOWLEDGE_BASE: Record<string, { diagnosis: string; steps: string[]
       "6. Do not operate until the exhaust leak is sealed to prevent carbon monoxide poisoning."
     ]
   },
-  car: {
+  car_start: {
     diagnosis: "Global automotive databases indicate that starting issues or unusual noises are usually linked to the battery, starter motor, alternator, or fuel delivery system.",
     steps: [
       "1. Test battery voltage with a multimeter (should be 12.6V+ when off, 13.7-14.7V when running).",
@@ -185,27 +196,37 @@ export default function AIAssist() {
   async function getAIResponse(userText: string) {
     const text = userText.toLowerCase();
     
+    // 1. Media Uploads
     if (text.includes('media_upload_image') || text.includes('media_upload_voice')) {
       const isImage = text.includes('image');
       setConsultationStage('gathering_info');
       return { text: `Thank you. I've received your ${isImage ? 'image' : 'voice note'}. To help me search the global databases accurately, could you tell me a bit more? For example, are there any unusual noises, warning lights, or specific times when the issue happens?`, hasReferralCard: false };
     }
 
+    // 2. "Show me another"
     if (text.includes('another') || text.includes('show me more')) {
       const artisans = await fetchRealArtisans(3);
       return { text: "Here are a few more verified TPwecan professionals available in your area:", hasReferralCard: true, providers: artisans };
     }
 
-    if (text.includes('start') || text.includes('not working') || text.includes('broken') || text.includes('noise') || text.includes('leak') || text.includes('generator') || text.includes('car')) {
+    // 3. THE SMART DIAGNOSTIC FLOW
+    // Expanded keywords to catch natural language like "smoke", "camry", "engine", etc.
+    const problemKeywords = ['start', 'not working', 'broken', 'noise', 'leak', 'generator', 'car', 'smoke', 'engine', 'camry', 'toyota', 'overheat', 'vibrate', 'shake', 'light', 'warning', 'power', 'battery'];
+    
+    if (problemKeywords.some(word => text.includes(word))) {
       if (consultationStage === 'idle' || consultationStage === 'gathering_info') {
         setConsultationStage('searching_web');
-        // Simulate deep web search delay
         await new Promise(resolve => setTimeout(resolve, 2500)); 
         
-        // Select knowledge base
+        // Select the right knowledge base based on keywords
         let knowledge = GLOBAL_KNOWLEDGE_BASE.default;
-        if (text.includes('generator') || text.includes('power')) knowledge = GLOBAL_KNOWLEDGE_BASE.generator;
-        if (text.includes('car') || text.includes('start') || text.includes('vehicle')) knowledge = GLOBAL_KNOWLEDGE_BASE.car;
+        if (text.includes('smoke') || text.includes('black') || text.includes('white') || text.includes('blue')) {
+          knowledge = GLOBAL_KNOWLEDGE_BASE.car_smoke;
+        } else if (text.includes('generator') || text.includes('power')) {
+          knowledge = GLOBAL_KNOWLEDGE_BASE.generator;
+        } else if (text.includes('start') || text.includes('car') || text.includes('camry') || text.includes('toyota')) {
+          knowledge = GLOBAL_KNOWLEDGE_BASE.car_start;
+        }
 
         const artisans = await fetchRealArtisans(1);
         setConsultationStage('resolved');
@@ -218,12 +239,14 @@ export default function AIAssist() {
       }
     }
 
+    // 4. Direct request for a mechanic/product
     if (text.includes('mechanic') || text.includes('artisan') || text.includes('buy') || text.includes('price')) {
       const artisans = await fetchRealArtisans(1);
       return { text: "I can certainly help you with that. I've found a verified TPwecan professional ready to assist you:", hasReferralCard: true, providers: artisans };
     }
 
-    return { text: "I'm here to help. Could you please describe the equipment issue you're facing?", hasReferralCard: false };
+    // 5. Fallback
+    return { text: "I'm here to help. Could you please describe the equipment issue you're facing? (e.g., 'My car is making a noise', 'My generator has black smoke')", hasReferralCard: false };
   }
 
   async function handleSend() {
@@ -261,7 +284,6 @@ export default function AIAssist() {
               {msg.imageUrl && <img src={msg.imageUrl} alt="Uploaded" className="mt-3 rounded-lg max-w-full border border-white/10" />}
               {msg.audioUrl && <audio controls src={msg.audioUrl} className="mt-3 w-full max-w-xs rounded-lg" />}
               
-              {/* DIRECTION LIST UI */}
               {msg.directionList && (
                 <div className="mt-4 bg-[#0F172A] rounded-xl p-4 border border-blue-500/30">
                   <div className="flex items-center justify-between mb-3">
