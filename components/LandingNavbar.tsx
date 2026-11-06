@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { Zap, Menu, X, LogOut } from 'lucide-react';
-import { supabase } from '../lib/supabase'; // Added Supabase import
+import Image from 'next/image'; // Added Next.js Image component
+import { Menu, X, LogOut } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 const mobileLinks = [
   { href: '/', label: 'Home' },
@@ -33,13 +34,21 @@ export default function LandingNavbar() {
   return (
     <nav className="sticky top-0 z-50 bg-white/40 backdrop-blur-xl border-b border-white/60">
       <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        
+        {/* DESKTOP LOGO */}
         <Link
           href="/"
-          className="flex items-center gap-2 font-black text-xl text-[#0F172A]"
+          className="flex items-center gap-2"
           onClick={() => setMenuOpen(false)}
         >
-          <Zap className="text-purple" size={24} fill="currentColor" />
-          <span>
+          <Image 
+            src="/tpm-logo.png" 
+            alt="TP Market Logo" 
+            width={40} 
+            height={40} 
+            className="rounded-lg" 
+          />
+          <span className="font-black text-xl text-[#0F172A]">
             TP<span className="text-purple">Market</span>
           </span>
         </Link>
@@ -101,16 +110,25 @@ export default function LandingNavbar() {
       {menuOpen && (
         <div className="md:hidden fixed inset-0 z-50 bg-gradient-to-b from-sky via-cyanlight to-white">
           <div className="flex items-center justify-between px-6 py-4 border-b border-white/60">
+            
+            {/* MOBILE LOGO */}
             <Link
               href="/"
-              className="flex items-center gap-2 font-black text-xl text-[#0F172A]"
+              className="flex items-center gap-2"
               onClick={() => setMenuOpen(false)}
             >
-              <Zap className="text-purple" size={24} fill="currentColor" />
-              <span>
+              <Image 
+                src="/tpm-logo.png" 
+                alt="TP Market Logo" 
+                width={40} 
+                height={40} 
+                className="rounded-lg" 
+              />
+              <span className="font-black text-xl text-[#0F172A]">
                 TP<span className="text-purple">Market</span>
               </span>
             </Link>
+            
             <button
               onClick={() => setMenuOpen(false)}
               aria-label="Close menu"
