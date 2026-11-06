@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import Image from 'next/image'; // Added Next.js Image component
+<Image 
+  src="/tpm-logo.png" 
+  alt="TP Market Logo" 
+  width={40} 
+  height={40} 
+  className="rounded-lg" 
+/>
 import { Menu, X, LogOut } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
