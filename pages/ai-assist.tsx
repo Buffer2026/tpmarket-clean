@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { Send, Image as ImageIcon, Bot, MapPin, Star, ShieldCheck, ArrowLeft, Loader2, Mic, MicOff, Copy, Check, Globe, Building2, FileText, Users } from 'lucide-react';
+import { Send, Image as ImageIcon, Bot, MapPin, Star, ShieldCheck, ArrowLeft, Loader2, Mic, MicOff, Copy, Check, Globe } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 // ==========================================
@@ -44,8 +44,8 @@ function checkSecurityViolation(text: string): boolean {
 // ==========================================
 const COMPANY_INFO = {
   about: "TP Market is a premier maintenance cooperative and artisan marketplace, powered by TPwecan. We connect customers with verified, certified professionals and provide a secure platform for buying equipment, spare parts, and services with our 90-Day Iron-Clad Guarantee.",
-  founder: "TP Market and the TPwecan certification program were founded with a vision to eliminate fraud in the artisan and equipment market. (Please update with specific founder bio if needed).",
-  contact: "You can reach our support team directly at support@tpmarket.ng or visit our headquarters. For urgent provider disputes, use the 'Report Issue' button on your dashboard.",
+  founder: "TP Market and the TPwecan certification program were founded with a vision to eliminate fraud in the artisan and equipment market, ensuring trust and quality in every transaction.",
+  contact: "You can reach our support team directly at support@tpmarket.ng. For urgent provider disputes, use the 'Report Issue' button on your dashboard.",
   address: "Our headquarters is located in Abuja, Nigeria, with a growing network of TPwecan-certified hubs across the country.",
   licenses: "TP Market operates as a fully CAC-registered cooperative. TPwecan is our proprietary certification authority that vets all artisans for technical competence and integrity.",
   terms: "Our Terms & Conditions and Privacy Policy are designed to protect both buyers and providers. All transactions are covered by our 90-Day Iron-Clad Guarantee. You can view the full legal documents in the app settings.",
@@ -53,7 +53,7 @@ const COMPANY_INFO = {
 };
 
 // ==========================================
-// GLOBAL TECHNICAL KNOWLEDGE ENGINE (Equipment)
+// GLOBAL TECHNICAL KNOWLEDGE ENGINE
 // ==========================================
 const GLOBAL_KNOWLEDGE_BASE: Record<string, { diagnosis: string; steps: string[] }> = {
   car_smoke: {
@@ -99,7 +99,8 @@ export default function AIAssist() {
   const [user, setUser] = useState<any>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   
-  const [consultationStage, setConsultationStage] = useState<'idle' | 'gathering_info' | 'searching_web' | 'resolved'>('idle');
+  // STRICT CONSULTATION STATE MACHINE (Fixed for TypeScript)
+  const [consultationStage, setConsultationStage] = useState<'idle' | 'asking_questions' | 'searching_web' | 'resolved'>('idle');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -196,16 +197,18 @@ export default function AIAssist() {
   }
 
   // ==========================================
-  // THE UNIVERSAL CONSULTANT BRAIN
+  // THE UNIVERSAL CONSULTANT BRAIN (TypeScript Safe)
   // ==========================================
   async function getAIResponse(userText: string) {
     const text = userText.toLowerCase();
     
     // 1. Media Uploads
     if (text.includes('media_upload_image') || text.includes('media_upload_voice')) {
-      const isImage = text.includes('image');
-      setConsultationStage('gathering_info');
-      return { text: `Thank you. I've received your ${isImage ? 'image' : 'voice note'}. To ensure I search the global databases accurately, could you tell me a bit more? For example, are there any unusual noises, warning lights, or specific times when the issue happens?`, hasReferralCard: false };
+      setConsultationStage('asking_questions');
+      return { 
+        text: `Thank you. I've received your media. To ensure I search the global databases accurately, could you tell me a bit more? For example, are there any unusual noises, warning lights, or specific times when the issue happens?`, 
+        hasReferralCard: false 
+      };
     }
 
     // 2. "Show me another"
@@ -230,23 +233,25 @@ export default function AIAssist() {
 
     // 4. PRODUCTS & SERVICES (Marketplace Guidance)
     if (text.includes('product') || text.includes('service') || text.includes('sell') || text.includes('buy') || text.includes('catalog')) {
-      return { text: "🛍️ **Marketplace Guidance**\n\nTP Market hosts thousands of products and services from our TPwecan-certified providers. This includes equipment, spare parts, and professional services (like plumbing, electrical, and auto repair).\n\nTo find exactly what you need, please visit the **Marketplace** tab on your dashboard, or tell me the specific item you are looking for (e.g., 'I need a generator' or 'I need a plumber') and I can connect you with a provider.", hasReferralCard: false };
+      return { text: "🛍️ **Marketplace Guidance**\n\nTP Market hosts thousands of products and services from our TPwecan-certified providers. This includes equipment, spare parts, and professional services.\n\nTo find exactly what you need, please visit the **Marketplace** tab on your dashboard, or tell me the specific item you are looking for and I can connect you with a provider.", hasReferralCard: false };
     }
 
     // 5. EQUIPMENT TROUBLESHOOTING (2-Step Consultation)
     const problemKeywords = ['start', 'not working', 'broken', 'noise', 'leak', 'generator', 'car', 'smoke', 'engine', 'camry', 'toyota', 'overheat', 'vibrate', 'shake', 'light', 'warning', 'power', 'battery', 'oil', 'brake', 'tire'];
     const hasProblem = problemKeywords.some(word => text.includes(word));
 
-    if (hasProblem || consultationStage === 'gathering_info') {
-      if (consultationStage === 'idle' || consultationStage === 'gathering_info') {
-        setConsultationStage('gathering_info');
+    if (hasProblem) {
+      // STEP 1: User states problem -> AI asks questions
+      if (consultationStage === 'idle' || consultationStage === 'resolved') {
+        setConsultationStage('asking_questions');
         return { 
           text: "I understand you're experiencing an issue. To ensure I give you the most accurate technical advice and recommend the right specialist, I need to ask a few quick questions:\n\n1. When did this problem first start, and has it gotten worse?\n2. Have you noticed any specific warning lights, error codes, or unusual smells?\n3. When was the last time the equipment was professionally serviced?\n\nOnce you answer these, I will search our global technical databases for the exact solution.", 
           hasReferralCard: false 
         };
       }
 
-      if (consultationStage === 'searching_web' || (consultationStage === 'gathering_info' && hasProblem)) {
+      // STEP 2: User answers questions -> AI gives final report
+      if (consultationStage === 'asking_questions') {
         setConsultationStage('searching_web');
         await new Promise(resolve => setTimeout(resolve, 2500)); 
         
