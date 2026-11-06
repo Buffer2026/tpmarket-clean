@@ -1,13 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-<Image 
-  src="/tpm-logo.png" 
-  alt="TP Market Logo" 
-  width={40} 
-  height={40} 
-  className="rounded-lg" 
-/>
 import { Menu, X, LogOut } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -41,18 +34,16 @@ export default function LandingNavbar() {
     <nav className="sticky top-0 z-50 bg-white/40 backdrop-blur-xl border-b border-white/60">
       <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
         
-        {/* DESKTOP LOGO */}
+        {/* DESKTOP LOGO - Using standard img tag for 100% Vercel compatibility */}
         <Link
           href="/"
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 shrink-0"
           onClick={() => setMenuOpen(false)}
         >
-          <Image 
+          <img 
             src="/tpm-logo.png" 
             alt="TP Market Logo" 
-            width={40} 
-            height={40} 
-            className="rounded-lg" 
+            className="w-10 h-10 rounded-lg object-contain" 
           />
           <span className="font-black text-xl text-[#0F172A]">
             TP<span className="text-purple">Market</span>
@@ -117,18 +108,16 @@ export default function LandingNavbar() {
         <div className="md:hidden fixed inset-0 z-50 bg-gradient-to-b from-sky via-cyanlight to-white">
           <div className="flex items-center justify-between px-6 py-4 border-b border-white/60">
             
-            {/* MOBILE LOGO */}
+            {/* MOBILE LOGO - Using standard img tag */}
             <Link
               href="/"
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 shrink-0"
               onClick={() => setMenuOpen(false)}
             >
-              <Image 
+              <img 
                 src="/tpm-logo.png" 
                 alt="TP Market Logo" 
-                width={40} 
-                height={40} 
-                className="rounded-lg" 
+                className="w-10 h-10 rounded-lg object-contain" 
               />
               <span className="font-black text-xl text-[#0F172A]">
                 TP<span className="text-purple">Market</span>
